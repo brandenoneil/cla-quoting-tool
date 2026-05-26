@@ -1,4 +1,4 @@
 {
-  "buildCommand": "prisma generate && prisma db push && prisma db seed && next build",
+  "buildCommand": "prisma generate && prisma db push && sh -c 'DATABASE_URL=\"$DIRECT_URL\" prisma db seed' && next build",
   "installCommand": "npm install"
 }
