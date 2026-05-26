@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
+// Stored lowercase so login + authorize() stay in sync
 const ADMIN_EMAIL = 'admin@cutliteamerica.com'
 /** Default bootstrap password — change after first prod login. Re-run `npm run db:seed` resets it. */
 const ADMIN_PASSWORD = 'CutliteAdmin2026'

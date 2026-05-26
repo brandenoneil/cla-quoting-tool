@@ -88,8 +88,8 @@ Configure **two** environment variables ([Prisma + Supabase](https://www.prisma.
 
 | Variable | Use |
 |---------|-----|
-| **`DATABASE_URL`** | **Transaction pool** URI (short-lived/serverless-friendly). |
-| **`DIRECT_URL`** | **Direct** URI (`db.*.supabase.co:5432`). Used by **`prisma db push`** on Vercel and for migrations locally. |
+| **`DATABASE_URL`** | **Runtime** (Vercel serverless). Use **Shared pooler → Transaction** or **Session pooler** (`*.pooler.supabase.com`). **Do not** use **Dedicated** `db.<ref>.supabase.co:6543` — Vercel is IPv4-only and login will fail with “Can't reach database server … :6543”. |
+| **`DIRECT_URL`** | **Build / migrations** only. **Session pooler** `:5432` on `*.pooler.supabase.com` (what worked in your deploy logs), or direct `:5432` if IPv6 works. |
 
 For **local-only** development you can often set **both** to the **direct** URI (simplest).
 
