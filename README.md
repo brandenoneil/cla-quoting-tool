@@ -63,43 +63,76 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy (Vercel + Neon)
+## Deploy (Vercel + Supabase)
 
-Production uses **PostgreSQL** (Prisma). SQLite is not suitable for serverless hosting.
+Production uses **PostgreSQL** through Prisma. Serverless hosts do not reliably support file-based SQLite; **Supabase** (Postgres + dashboard, same ecosystem you may use on AROS) is a good fit.
 
-1. Create a free [Neon](https://neon.tech) database and copy the **pooled** connection string.
-2. Push this repo to GitHub, then [import the project on Vercel](https://vercel.com/new).
-3. Set environment variables in Vercel (Project → Settings → Environment Variables):
+### 1. Supabase database
+
+Supabase does **not** hide this under Database settings only—you open it from **`Connect`** in the dashboard.
+
+**Where to find the URIs**
+
+1. Sign in → open your **project**.
+2. At the **top of the dashboard** there is a **Connect** button (often top-right bar). **[Click Connect](https://supabase.com/docs/guides/database/connecting-to-postgres#where-is-the-postgres-connection-string-in-supabase)** — a modal appears with Postgres connection tabs.
+3. In that modal, switch tabs and copy:
+   - **Transaction pool** (often port **6543**, “serverless / edge”) → use as **`DATABASE_URL`** on Vercel [[Supabase pooling](https://supabase.com/docs/guides/database/connecting-to-postgres)].  
+     For Prisma, append **`?pgbouncer=true`** if the string does not already include it (some copy-pastes include pooling params automatically).
+   - **Direct connection** or **Direct** (port **5432**, host like `db.<project-ref>.supabase.co`) → use as **`DIRECT_URL`** (builds **`prisma db push`** correctly).
+
+Supabase occasionally changes labels (“Transaction pool”, “Dedicated pooler”, “ORM”). If you see **Prisma**, it may propose both pooled and direct—it’s OK to paste those into **`DATABASE_URL`** / **`DIRECT_URL`** accordingly.
+
+If you honestly don’t see **Connect**: press **`g`** then **`d`** for “go to database” in some builds, or use **Project Settings** (gear) → **Database** — the password and host are there; you can still build the URI by hand from the [connection method examples](https://supabase.com/docs/guides/database/connecting-to-postgres) (direct `5432` vs transaction pool `6543`).
+
+Configure **two** environment variables ([Prisma + Supabase](https://www.prisma.io/docs/orm/overview/databases/supabase)):
+
+| Variable | Use |
+|---------|-----|
+| **`DATABASE_URL`** | **Transaction pool** URI (short-lived/serverless-friendly). |
+| **`DIRECT_URL`** | **Direct** URI (`db.*.supabase.co:5432`). Used by **`prisma db push`** on Vercel and for migrations locally. |
+
+For **local-only** development you can often set **both** to the **direct** URI (simplest).
+
+**Note:** If Vercel can’t resolve **IPv6** and the **direct** host fails during build, use Supabase [**session pool**](https://supabase.com/docs/guides/database/connecting-to-postgres#pooler-session-mode) for **`DIRECT_URL`** or enable their **IPv4 add-on** for direct connections—see Supabase’s “Connecting to Postgres” doc.
+
+### 2. Vercel
+
+1. [Import the repo](https://vercel.com/new) (or use an existing linked project).
+2. **Project → Settings → Environment Variables** — add (at least for **Production**, and optionally **Preview**):
 
    | Variable | Notes |
    |----------|--------|
-   | `DATABASE_URL` | Neon PostgreSQL URL (`?sslmode=require`) |
-   | `NEXTAUTH_SECRET` | `openssl rand -base64 32` |
-   | `NEXTAUTH_URL` | `https://your-project.vercel.app` |
+   | `DATABASE_URL` | Pooled URI (above) |
+   | `DIRECT_URL` | Direct URI (above) |
+   | `NEXTAUTH_SECRET` | e.g. `openssl rand -base64 32` |
+   | `NEXTAUTH_URL` | Your canonical URL (`https://…vercel.app` or custom domain) |
    | `HUBSPOT_PRIVATE_APP_TOKEN` | Optional |
    | `CLA_ANTHROPIC_KEY` | Optional |
-   | `DEALER_EMBED_FRAME_ANCESTORS` | Optional; space-separated parent origins for embed |
+   | `DEALER_EMBED_FRAME_ANCESTORS` | Optional; space-separated parent origins for iframe embed |
 
-4. Deploy. The Vercel build runs `prisma db push` to create tables, then `next build`.
-5. After the first deploy, run the seed once (creates admin if empty):
+3. Deploy. The build runs **`prisma db push`** (via `directUrl`) to sync the schema, then **`next build`**.
+
+4. **Seed once** after the schema exists (creates admin if DB is empty). Pull env vars and run seed:
 
    ```bash
-   npx vercel env pull .env.production
-   DATABASE_URL="..." npx prisma db seed
+   npx vercel env pull .env.production.local
+   npx prisma db seed
    ```
 
-   Or use Vercel’s **Run Command** / a one-off terminal with production env.
+   Alternatively run `prisma db seed` from any machine where `DATABASE_URL` / `DIRECT_URL` match production.
 
-Default seeded admin (change password after first login): see `prisma/seed.ts`.
+Default seeded credentials (rotate after first login): see [`prisma/seed.ts`](prisma/seed.ts).
 
-**PDF generation** uses Puppeteer and may need extra configuration on Vercel (memory/timeout). Price check and most quote flows do not depend on it.
+**PDF generation** uses Puppeteer and may need extra tuning on Vercel (memory / timeout). The dealer price check and most quote flows do not depend on it.
 
-### Local development after Postgres migration
+### Local development with Supabase
 
-Copy `.env.example` to `.env` and set `DATABASE_URL` to your Neon dev branch or local Postgres. Run:
+Copy `.env.example` to `.env`, fill **`DATABASE_URL`** and **`DIRECT_URL`**, then:
 
 ```bash
 npx prisma db push
 npm run db:seed
 npm run dev
 ```
+
+This app uses **NextAuth + your `User` table** — you are only using Supabase as **PostgreSQL** here; Supabase Auth is optional unless you integrate it separately.

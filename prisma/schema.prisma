@@ -2,9 +2,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// DATABASE_URL — Supabase pooled (PgBouncer) for serverless; DIRECT_URL — direct Postgres for prisma db push / migrate
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Quote {
