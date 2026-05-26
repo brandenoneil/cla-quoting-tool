@@ -3,25 +3,29 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
+const ADMIN_EMAIL = 'admin@cutliteamerica.com'
+/** Default bootstrap password — change after first prod login. Re-run `npm run db:seed` resets it. */
+const ADMIN_PASSWORD = 'CutliteAdmin2026'
+
 async function main() {
-  const existingUser = await prisma.user.findFirst()
-  if (existingUser) {
-    console.log('Database already seeded, skipping.')
-    return
-  }
+  const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, 12)
 
-  const hashedPassword = await bcrypt.hash('CutliteAdmin2026', 12)
-
-  await prisma.user.create({
-    data: {
-      email: 'admin@cutliteamerica.com',
+  await prisma.user.upsert({
+    where: { email: ADMIN_EMAIL },
+    create: {
+      email: ADMIN_EMAIL,
       name: 'Admin',
       password: hashedPassword,
       role: 'admin',
     },
+    update: {
+      password: hashedPassword,
+      name: 'Admin',
+      role: 'admin',
+    },
   })
 
-  console.log('Seeded admin user: admin@cutliteamerica.com')
+  console.log(`Upserted admin user: ${ADMIN_EMAIL}`)
 }
 
 main()

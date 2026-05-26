@@ -112,16 +112,40 @@ For **local-only** development you can often set **both** to the **direct** URI 
 
 3. Deploy. The build runs **`prisma db push`** (via `directUrl`) to sync the schema, then **`next build`**.
 
-4. **Seed once** after the schema exists (creates admin if DB is empty). Pull env vars and run seed:
+4. **Create the admin user** (required for `/login`):
+
+   **Default credentials** (see [`prisma/seed.ts`](prisma/seed.ts)):  
+   `admin@cutliteamerica.com` / `CutliteAdmin2026` — change after first login.
+
+   **Option A — Prisma seed (recommended)**  
+   `npx vercel env pull` often writes **empty** values for `DATABASE_URL` / `DIRECT_URL` locally. If `npx prisma db seed` fails with “nonempty URL”, paste your production strings into a **temporary** file (do not commit) or run:
 
    ```bash
-   npx vercel env pull .env.production.local
-   npx prisma db seed
+   DATABASE_URL='postgresql://…' DIRECT_URL='postgresql://…' npx prisma db seed
    ```
 
-   Alternatively run `prisma db seed` from any machine where `DATABASE_URL` / `DIRECT_URL` match production.
+   (Use the same URIs as in Vercel; password must be URL-encoded if it has special characters.)
 
-Default seeded credentials (rotate after first login): see [`prisma/seed.ts`](prisma/seed.ts).
+   **Option B — Supabase SQL Editor**  
+   If seed is awkward, run this once in **Supabase → SQL** (password for login is `CutliteAdmin2026`):
+
+   ```sql
+   INSERT INTO "User" ("id", "email", "name", "password", "role", "createdAt")
+   VALUES (
+     replace(gen_random_uuid()::text, '-', ''),
+     'admin@cutliteamerica.com',
+     'Admin',
+     '$2b$12$MSKfhwbiSHeIj4mEyv5FD.7IiJ3ejr/tqkn1wP.6qdsMj35waw/TS',
+     'admin',
+     NOW()
+   )
+   ON CONFLICT ("email") DO UPDATE SET
+     "password" = EXCLUDED."password",
+     "role" = EXCLUDED."role",
+     "name" = EXCLUDED."name";
+   ```
+
+   If login still says “Invalid email or password”, the row is missing or the app is not using the same database as Supabase (wrong `DATABASE_URL` on Vercel).
 
 **PDF generation** uses Puppeteer and may need extra tuning on Vercel (memory / timeout). The dealer price check and most quote flows do not depend on it.
 
