@@ -3,25 +3,249 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f2ee;
+  --foreground: #1a2332;
+  --cla-navy: #0a2e52;
+  --cla-navy-deep: #061a31;
+  --cla-steel: #1b6fc8;
+  --cla-gold: #b08d4e;
+  --cla-shadow-card: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 18px 50px -24px rgba(10, 46, 82, 0.35);
+  --cla-shadow-card-hover: 0 1px 0 rgba(255, 255, 255, 0.85) inset, 0 24px 60px -28px rgba(10, 46, 82, 0.42);
+  --cla-shadow-login: 0 32px 80px -32px rgba(6, 26, 48, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* Heading font stacks on the same runtime face as Inter when only one Latin font loads. */
+    --font-display: var(--font-sans);
+  }
+
+  body {
+    @apply antialiased bg-brand-warm-white text-brand-text-mid;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  ::selection {
+    background: rgba(27, 111, 200, 0.22);
+    color: var(--cla-navy);
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* Ambient page canvas */
+  .cla-page-canvas {
+    @apply relative min-h-screen isolate;
+    background-color: var(--background);
+    background-image:
+      radial-gradient(ellipse 140% 90% at 50% -30%, rgba(27, 111, 200, 0.11), transparent 55%),
+      radial-gradient(ellipse 55% 45% at 100% -5%, rgba(176, 141, 78, 0.09), transparent 50%),
+      radial-gradient(ellipse 45% 40% at -5% 105%, rgba(10, 46, 82, 0.06), transparent 45%);
+  }
+
+  .cla-page-canvas::before {
+    content: '';
+    pointer-events: none;
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    opacity: 0.55;
+    /* Sit behind scrolling content without forcing descendants to position:relative (would break sticky header). */
+    z-index: -1;
+  }
+
+  /* Header */
+  .cla-header-shell {
+    @apply bg-[#0A2E52];
+    background-image: linear-gradient(180deg, #0c3660 0%, #0a2e52 38%, #071f3a 100%);
+    box-shadow: 0 12px 40px rgba(6, 26, 48, 0.45);
+  }
+
+  .cla-header-inner {
+    @apply relative overflow-hidden;
+  }
+
+  .cla-header-inner::after {
+    content: '';
+    position: absolute;
+    inset: -40% -20% auto -20%;
+    height: 120%;
+    background: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.08), transparent 55%);
+    pointer-events: none;
+  }
+
+  .cla-gold-line {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(176, 141, 78, 0.15) 18%,
+      #b08d4e 48%,
+      rgba(27, 111, 200, 0.55) 72%,
+      transparent 100%
+    );
+    background-size: 180% 100%;
+    animation: cla-line-shimmer 10s ease-in-out infinite;
+  }
+
+  /* Primary surfaces */
+  .cla-glass-panel {
+    @apply rounded-2xl border border-white/80 bg-white/90 backdrop-blur-md;
+    box-shadow: var(--cla-shadow-card);
+  }
+
+  .cla-elevated {
+    @apply rounded-2xl border border-brand-rule-gray/60 bg-white;
+    box-shadow: var(--cla-shadow-card);
+  }
+
+  .cla-input {
+    @apply w-full rounded-xl border border-brand-rule-gray/80 bg-white/95 px-4 py-3.5 text-sm text-brand-text-mid shadow-sm transition-all duration-300 ease-out placeholder:text-brand-text-muted/80;
+    @apply focus:border-brand-steel focus:outline-none focus:ring-2 focus:ring-brand-steel/25;
+  }
+
+  .cla-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A2E52] px-5 py-3 text-sm font-semibold text-white shadow-md transition-all duration-200 ease-out;
+    @apply hover:bg-brand-steel hover:shadow-lg active:scale-[0.98];
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold focus-visible:ring-offset-2;
+  }
+
+  .cla-btn-ghost {
+    @apply text-sm font-medium text-[#94B8D9] transition-colors duration-200 hover:text-white;
+  }
+
+  /* Dealer price check — table size range control */
+  .table-size-slider::-webkit-slider-thumb {
+    @apply appearance-none w-4 h-4 rounded-full bg-[#1B6FC8] border-2 border-white shadow-md;
+    margin-top: -4px;
+  }
+  .table-size-slider::-moz-range-thumb {
+    @apply w-4 h-4 rounded-full bg-[#1B6FC8] shadow-md;
+    border: 2px solid white;
+  }
+
+  .cla-kicker {
+    @apply text-[10px] font-semibold uppercase tracking-[0.22em] text-brand-text-muted;
+  }
+
+  .cla-title {
+    @apply text-2xl sm:text-3xl font-semibold tracking-tight text-[#0A2E52];
+    font-family: var(--font-display), var(--font-sans), Georgia, serif;
+  }
+
+  .cla-section-heading {
+    @apply text-2xl sm:text-3xl font-semibold tracking-tight text-[#0A2E52] mb-2;
+    font-family: var(--font-display), var(--font-sans), Georgia, serif;
+  }
+
+  .cla-section-sub {
+    @apply text-sm text-brand-text-muted mb-6 leading-relaxed;
+  }
+
+  .cla-field-label {
+    @apply block text-xs font-semibold uppercase tracking-wider text-brand-text-muted mb-2;
+  }
+
+  .cla-field-label-sm {
+    @apply block text-sm font-medium text-brand-text-mid mb-1;
+  }
+
+  .cla-tabs {
+    @apply flex border-b border-brand-rule-gray/60 mb-6 overflow-x-auto;
+  }
+
+  .cla-tab {
+    @apply px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors duration-200 whitespace-nowrap border-transparent text-brand-text-muted hover:text-brand-text-mid;
+  }
+
+  .cla-tab-active {
+    @apply border-brand-steel text-brand-steel;
+  }
+
+  .cla-header-action {
+    @apply px-3 py-1.5 border border-white/25 text-white text-xs rounded-lg hover:bg-white/10 transition-all duration-200 active:scale-[0.98];
+  }
+
+  .cla-highlight-total {
+    @apply rounded-2xl border border-brand-steel/20 bg-gradient-to-br from-brand-steel-light/90 to-white p-5;
+    box-shadow: var(--cla-shadow-card);
+  }
+
+  .cla-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-[#0A2E52] px-5 py-3 text-sm font-semibold text-[#0A2E52] transition-all duration-200 hover:bg-brand-steel-light/50 active:scale-[0.98];
+  }
+
+  .cla-btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand-gold to-amber-800 px-5 py-3 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-amber-600 hover:to-amber-900 active:scale-[0.98] disabled:opacity-50;
+  }
+
+  .cla-alert-error {
+    @apply p-3.5 bg-red-50/95 border border-red-200/80 rounded-xl text-sm text-red-700;
+  }
+
+  .cla-alert-warning {
+    @apply p-4 bg-amber-50/90 border border-amber-200/80 rounded-xl text-sm text-amber-900;
+  }
+
+  .cla-alert-success {
+    @apply p-4 bg-emerald-50/90 border border-emerald-200/80 rounded-xl text-sm text-emerald-800;
+  }
+
+  .cla-panel-header {
+    @apply px-6 py-4 border-b border-brand-rule-gray/50 bg-gradient-to-r from-brand-steel-light/40 to-transparent;
+  }
+
+  .cla-dropdown {
+    @apply absolute top-full left-0 right-0 mt-2 rounded-2xl border border-white/80 bg-white/90 backdrop-blur-md py-1 z-50 max-h-80 overflow-y-auto;
+    box-shadow: var(--cla-shadow-card-hover);
+    animation: cla-scale-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+
+  .cla-stagger-1 {
+    animation-delay: 60ms;
+  }
+  .cla-stagger-2 {
+    animation-delay: 120ms;
+  }
+  .cla-stagger-3 {
+    animation-delay: 180ms;
+  }
+  .cla-stagger-4 {
+    animation-delay: 240ms;
+  }
+}
+
+@keyframes cla-line-shimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(10, 46, 82, 0.18);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(10, 46, 82, 0.32);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }

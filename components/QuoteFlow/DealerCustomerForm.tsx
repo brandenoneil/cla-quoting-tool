@@ -1,0 +1,224 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+
+interface CustomerInfo {
+  company: string
+  contactName: string
+  contactEmail: string
+  contactPhone: string
+  notes: string
+}
+
+interface CompanyResult {
+  id: string
+  name: string
+  city?: string
+  state?: string
+  contact: { name: string; email: string; phone: string } | null
+}
+
+interface Props {
+  onContinue: (info: CustomerInfo) => void
+}
+
+export default function DealerCustomerForm({ onContinue }: Props) {
+  const [company, setCompany]           = useState('')
+  const [contactName, setContactName]   = useState('')
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [notes, setNotes]               = useState('')
+  const [error, setError]               = useState('')
+
+  // ── Company search ───────────────────────────────────────────────────────────
+  const [results, setResults]       = useState<CompanyResult[]>([])
+  const [searching, setSearching]   = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const debounceRef = useRef<NodeJS.Timeout>()
+  const wrapperRef  = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  // Debounced search on company name change
+  useEffect(() => {
+    clearTimeout(debounceRef.current)
+    if (company.length < 2) {
+      setResults([])
+      setDropdownOpen(false)
+      return
+    }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await fetch(`/api/companies/search?q=${encodeURIComponent(company)}`)
+        const data = await res.json()
+        setResults(data.companies ?? [])
+        setDropdownOpen((data.companies ?? []).length > 0)
+      } catch {
+        setResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+    return () => clearTimeout(debounceRef.current)
+  }, [company])
+
+  function selectCompany(result: CompanyResult) {
+    setCompany(result.name)
+    setDropdownOpen(false)
+    setResults([])
+    if (result.contact) {
+      if (result.contact.name)  setContactName(result.contact.name)
+      if (result.contact.email) setContactEmail(result.contact.email)
+      if (result.contact.phone) setContactPhone(result.contact.phone)
+    }
+  }
+
+  function handleSubmit() {
+    if (!company.trim() || !contactName.trim() || !contactEmail.trim()) {
+      setError('Company, contact name, and email are required.')
+      return
+    }
+    setError('')
+    onContinue({
+      company: company.trim(),
+      contactName: contactName.trim(),
+      contactEmail: contactEmail.trim(),
+      contactPhone: contactPhone.trim(),
+      notes: notes.trim(),
+    })
+  }
+
+  const inputCls = 'cla-input py-2.5'
+  const labelCls = 'cla-field-label'
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="cla-section-heading">Customer information</h2>
+        <p className="cla-section-sub mb-0">Enter the end customer&apos;s details. This will create a new deal in HubSpot.</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+        {/* ── Company Name with search dropdown ── */}
+        <div className="sm:col-span-2" ref={wrapperRef}>
+          <label className={labelCls}>Company Name *</label>
+          <div className="relative">
+            <input
+              className={inputCls + (dropdownOpen ? ' rounded-b-none border-b-0' : '')}
+              placeholder="Acme Manufacturing Co."
+              value={company}
+              autoComplete="off"
+              onChange={e => {
+                setCompany(e.target.value)
+                setDropdownOpen(false) // will reopen after debounce if results come back
+              }}
+              onFocus={() => results.length > 0 && setDropdownOpen(true)}
+            />
+
+            {/* Spinner */}
+            {searching && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <div className="w-4 h-4 border-2 border-[#1B6FC8] border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+
+            {/* Dropdown */}
+            {dropdownOpen && results.length > 0 && (
+              <div className="cla-dropdown rounded-t-none border-t-0 max-h-64">
+                {results.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); selectCompany(r) }}
+                    className="w-full text-left px-4 py-3 hover:bg-[#E6F1FB] transition-colors border-b border-gray-100 last:border-0"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#0A2E52] truncate">{r.name}</p>
+                        {(r.city || r.state) && (
+                          <p className="text-xs text-gray-400">{[r.city, r.state].filter(Boolean).join(', ')}</p>
+                        )}
+                      </div>
+                      {r.contact && (
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xs text-gray-600">{r.contact.name}</p>
+                          <p className="text-xs text-gray-400">{r.contact.email}</p>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {dropdownOpen && results.length > 0 && (
+            <p className="text-[11px] text-gray-400 mt-1">Select to auto-fill contact info, or continue typing to enter manually.</p>
+          )}
+        </div>
+
+        <div>
+          <label className={labelCls}>Contact Name *</label>
+          <input
+            className={inputCls}
+            placeholder="John Smith"
+            value={contactName}
+            onChange={e => setContactName(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className={labelCls}>Contact Email *</label>
+          <input
+            type="email"
+            className={inputCls}
+            placeholder="john@acme.com"
+            value={contactEmail}
+            onChange={e => setContactEmail(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className={labelCls}>Contact Phone</label>
+          <input
+            className={inputCls}
+            placeholder="(555) 000-0000"
+            value={contactPhone}
+            onChange={e => setContactPhone(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>Additional Notes</label>
+        <textarea
+          className={inputCls + ' min-h-[80px] resize-y'}
+          placeholder="Any specific requirements, timeline, or context for this customer…"
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+        />
+      </div>
+
+      {error && (
+        <p className="cla-alert-error">{error}</p>
+      )}
+
+      <button
+        onClick={handleSubmit}
+        className="cla-btn-primary w-full py-3.5"
+      >
+        Continue →
+      </button>
+    </div>
+  )
+}

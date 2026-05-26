@@ -1,4 +1,11 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  experimental: {
+    serverComponentsExternalPackages: ['puppeteer', '@prisma/client', 'prisma', 'pdf-parse', 'mammoth'],
+  },
+}
 
-export default nextConfig;
+export default nextConfig

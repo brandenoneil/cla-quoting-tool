@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Quote {
+  id               String   @id @default(cuid())
+  quoteNumber      String   @unique
+  hubspotDealId    String
+  hubspotDealName  String
+  hubspotQuoteId   String?
+  company          String
+  contactName      String
+  contactEmail     String
+  contactPhone     String?
+  machineModel     String
+  machinePower     String
+  laserSource      String
+  bevelHead        String
+  deliveryWeeks    Int
+  tier             String
+  packageName      String
+  lineItemsJson    String
+  subtotal         Float
+  discountAmount   Float
+  freight          Float
+  totalAmount      Float
+  status              String   @default("DRAFT")
+  notes               String?
+  createdBy           String
+  submittedByDealer   String?
+  dealerCompany       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("sales")
+  createdAt DateTime @default(now())
+}
