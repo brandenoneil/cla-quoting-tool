@@ -2,10 +2,9 @@
 
 import { Suspense, useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 
 function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,13 +25,21 @@ function LoginForm() {
     if (result?.error) {
       setError('Invalid email or password')
       setLoading(false)
-    } else {
+      return
+    }
+
+    if (result?.ok) {
       const rawCb = searchParams.get('callbackUrl')
       const next =
         rawCb && rawCb.startsWith('/') && !rawCb.startsWith('//') ? rawCb : '/'
-      router.push(next)
-      router.refresh()
+      // Hard navigation so the session cookie from /api/auth/* is always sent on the next load
+      // (avoids getting stuck on “Signing in…” if client-side routing races middleware).
+      window.location.assign(next)
+      return
     }
+
+    setError('Sign-in did not finish. Try again or refresh the page.')
+    setLoading(false)
   }
 
   return (
