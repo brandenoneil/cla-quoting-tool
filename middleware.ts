@@ -52,5 +52,6 @@ export default withAuth(
 )
 
 export const config = {
-  matcher: ['/((?!login|api/auth|_next|favicon.ico|logos/|machines/|.*\\.png$|.*\\.jpg$|.*\\.svg$|.*\\.ico$|.*\\.webp$).*)'],
+  // API routes check session themselves; skip JWT middleware so fetches reliably reach the handler
+  matcher: ['/((?!api/|login|_next|favicon.ico|logos/|machines/|.*\\.png$|.*\\.jpg$|.*\\.svg$|.*\\.ico$|.*\\.webp$).*)'],
 }

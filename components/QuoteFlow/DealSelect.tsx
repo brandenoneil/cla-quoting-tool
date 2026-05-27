@@ -38,21 +38,71 @@ export default function DealSelect({ onDealSelected }: Props) {
   const [companySearching, setCompanySearching] = useState(false)
   const [companyOpen, setCompanyOpen] = useState(false)
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+  const [companyCrmBanner, setCompanyCrmBanner] = useState('')
   const companyDebounce = useRef<NodeJS.Timeout>()
   const companyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     clearTimeout(companyDebounce.current)
-    if (companyQuery.length < 2) { setCompanies([]); return }
+    if (companyQuery.length < 2) {
+      setCompanies([])
+      setCompanyCrmBanner('')
+      return
+    }
     companyDebounce.current = setTimeout(async () => {
       setCompanySearching(true)
       try {
-        const res = await fetch(`/api/companies/search?q=${encodeURIComponent(companyQuery)}`)
-        const data = await res.json()
-        setCompanies(data.companies ?? [])
-        setCompanyOpen(true)
-      } catch {}
-      finally { setCompanySearching(false) }
+        const res = await fetch(`/api/companies/search?q=${encodeURIComponent(companyQuery)}`, {
+          credentials: 'same-origin',
+        })
+        let data: {
+          companies?: Array<{
+            id: string
+            name?: string
+            city?: string
+            state?: string
+            properties?: { name?: string; city?: string; state?: string }
+          }>
+          hubspotConfigured?: boolean
+          message?: string
+          error?: string
+        } = {}
+        try {
+          data = await res.json()
+        } catch {
+          data = {}
+        }
+        const raw = data.companies ?? []
+        const mapped: Company[] = raw.map((c) => ({
+          id: c.id,
+          properties: {
+            name: c.name ?? c.properties?.name ?? '',
+            city: c.city ?? c.properties?.city,
+            state: c.state ?? c.properties?.state,
+          },
+        }))
+        setCompanies(mapped)
+        setCompanyOpen(mapped.length > 0)
+        if (!res.ok) {
+          setCompanyCrmBanner(
+            data.error ??
+              (res.status === 401 ? 'Session expired — refresh and sign in again.' : `CRM search failed (${res.status}).`)
+          )
+          return
+        }
+        if (data.hubspotConfigured === false && data.message) {
+          setCompanyCrmBanner(data.message)
+        } else if (data.error) {
+          setCompanyCrmBanner(data.error)
+        } else {
+          setCompanyCrmBanner('')
+        }
+      } catch {
+        setCompanies([])
+        setCompanyCrmBanner('Could not reach CRM search.')
+      } finally {
+        setCompanySearching(false)
+      }
     }, 300)
   }, [companyQuery])
 
@@ -254,12 +304,15 @@ export default function DealSelect({ onDealSelected }: Props) {
                   </div>
                 )}
 
-                {companyOpen && companyQuery.length >= 2 && companies.length === 0 && !companySearching && (
+                {companyOpen && companyQuery.length >= 2 && companies.length === 0 && !companySearching && !companyCrmBanner && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 px-4 py-3 text-sm text-gray-400">
                     No companies found in HubSpot
                   </div>
                 )}
               </div>
+              {companyCrmBanner && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">{companyCrmBanner}</p>
+              )}
               {!selectedCompany && companyQuery.length > 0 && (
                 <p className="text-xs text-amber-600 mt-1">Select a company from the list</p>
               )}

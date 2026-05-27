@@ -29,6 +29,7 @@ export default function DealerCustomerForm({ onContinue }: Props) {
   const [contactPhone, setContactPhone] = useState('')
   const [notes, setNotes]               = useState('')
   const [error, setError]               = useState('')
+  const [crmBanner, setCrmBanner]       = useState('')
 
   // ── Company search ───────────────────────────────────────────────────────────
   const [results, setResults]       = useState<CompanyResult[]>([])
@@ -54,17 +55,51 @@ export default function DealerCustomerForm({ onContinue }: Props) {
     if (company.length < 2) {
       setResults([])
       setDropdownOpen(false)
+      setCrmBanner('')
       return
     }
     debounceRef.current = setTimeout(async () => {
       setSearching(true)
       try {
-        const res = await fetch(`/api/companies/search?q=${encodeURIComponent(company)}`)
-        const data = await res.json()
-        setResults(data.companies ?? [])
-        setDropdownOpen((data.companies ?? []).length > 0)
+        const res = await fetch(`/api/companies/search?q=${encodeURIComponent(company)}`, {
+          credentials: 'same-origin',
+        })
+        let data: {
+          companies?: CompanyResult[]
+          hubspotConfigured?: boolean
+          message?: string
+          error?: string
+        } = {}
+        try {
+          data = await res.json()
+        } catch {
+          data = {}
+        }
+        const list = data.companies ?? []
+        if (!res.ok) {
+          setResults([])
+          setDropdownOpen(false)
+          setCrmBanner(
+            data.error ??
+              (res.status === 401
+                ? 'Session expired — refresh the page and sign in again.'
+                : `CRM search failed (${res.status}).`)
+          )
+          return
+        }
+        setResults(list)
+        setDropdownOpen(list.length > 0)
+        if (data.hubspotConfigured === false && data.message) {
+          setCrmBanner(data.message)
+        } else if (data.error) {
+          setCrmBanner(data.error)
+        } else {
+          setCrmBanner('')
+        }
       } catch {
         setResults([])
+        setDropdownOpen(false)
+        setCrmBanner('Could not reach CRM search.')
       } finally {
         setSearching(false)
       }
@@ -164,6 +199,9 @@ export default function DealerCustomerForm({ onContinue }: Props) {
           </div>
           {dropdownOpen && results.length > 0 && (
             <p className="text-[11px] text-gray-400 mt-1">Select to auto-fill contact info, or continue typing to enter manually.</p>
+          )}
+          {crmBanner && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">{crmBanner}</p>
           )}
         </div>
 

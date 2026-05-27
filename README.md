@@ -34,6 +34,10 @@ If the iframe is embedded on a **different site** than the app’s own origin (c
 
 API: `POST /api/dealer/price-check` (dealer role only). `GET /api/dealer/price-check` returns model name hints from the sheet (labels only).
 
+## HubSpot CRM (company search & deals)
+
+Company autocomplete and deal flows use HubSpot’s API. Set **`HUBSPOT_PRIVATE_APP_TOKEN`** in `.env` / Vercel (private app with scopes to read **Companies** and **Contacts**, plus whatever you need for deals/quotes). If it is missing, the UI shows **“CRM search is unavailable”** instead of failing silently.
+
 ## Getting Started
 
 First, run the development server:
@@ -106,7 +110,7 @@ For **local-only** development you can often set **both** to the **direct** URI 
    | `DIRECT_URL` | Direct URI (above) |
    | `NEXTAUTH_SECRET` | e.g. `openssl rand -base64 32` |
    | `NEXTAUTH_URL` | Your canonical URL (`https://…vercel.app` or custom domain) |
-   | `HUBSPOT_PRIVATE_APP_TOKEN` | Optional |
+   | `HUBSPOT_PRIVATE_APP_TOKEN` | **Required** for company search / HubSpot deal features (private app token) |
    | `CLA_ANTHROPIC_KEY` | Optional |
    | `DEALER_EMBED_FRAME_ANCESTORS` | Optional; space-separated parent origins for iframe embed |
 

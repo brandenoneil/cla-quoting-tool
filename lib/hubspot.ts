@@ -2,6 +2,10 @@ import type { HubSpotDeal } from '@/types'
 
 const BASE_URL = 'https://api.hubapi.com'
 
+export function hubspotConfigured(): boolean {
+  return !!(process.env.HUBSPOT_PRIVATE_APP_TOKEN ?? '').trim()
+}
+
 function getHeaders() {
   const token = process.env.HUBSPOT_PRIVATE_APP_TOKEN
   if (!token) throw new Error('HUBSPOT_PRIVATE_APP_TOKEN is not set')
@@ -379,11 +383,31 @@ export async function searchCompanyByName(name: string) {
 }
 
 export async function searchCompanies(query: string, limit = 10) {
+  const raw = query.trim()
+  if (!raw.length) return []
+
+  /** CONTAINS_TOKEN behaves better than undocumented `query` field for portal-to-portal behavior */
+  const firstToken =
+    raw
+      .split(/\s+/)
+      .map((w) => w.replace(/[^a-zA-Z0-9]/g, ''))
+      .find((w) => w.length >= 2) ?? raw.slice(0, 64)
+
   const res = await fetchWithRetry(`${BASE_URL}/crm/v3/objects/companies/search`, {
     method: 'POST',
     headers: getHeaders(),
     body: JSON.stringify({
-      query,
+      filterGroups: [
+        {
+          filters: [
+            {
+              propertyName: 'name',
+              operator: 'CONTAINS_TOKEN',
+              value: firstToken,
+            },
+          ],
+        },
+      ],
       properties: ['name', 'city', 'state'],
       limit,
     }),
