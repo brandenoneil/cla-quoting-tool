@@ -1,7 +1,10 @@
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
+import { sessionTokenCookieName, useSecureAuthCookies } from '@/lib/auth-cookies'
 import { prisma } from '@/lib/prisma'
+
+const secureCookies = useSecureAuthCookies()
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -76,4 +79,16 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   secret: process.env.NEXTAUTH_SECRET,
+  useSecureCookies: secureCookies,
+  cookies: {
+    sessionToken: {
+      name: sessionTokenCookieName(),
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: secureCookies,
+      },
+    },
+  },
 }

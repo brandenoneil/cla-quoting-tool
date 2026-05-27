@@ -1,5 +1,6 @@
 import { withAuth } from 'next-auth/middleware'
 import { NextResponse } from 'next/server'
+import { sessionTokenCookieName } from '@/lib/auth-cookies'
 
 export default withAuth(
   function middleware(req) {
@@ -38,6 +39,12 @@ export default withAuth(
     return withEmbedFrameAncestors(NextResponse.next())
   },
   {
+    secret: process.env.NEXTAUTH_SECRET,
+    cookies: {
+      sessionToken: {
+        name: sessionTokenCookieName(),
+      },
+    },
     callbacks: {
       authorized: ({ token }) => !!token,
     },

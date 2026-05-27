@@ -30,8 +30,19 @@ function LoginForm() {
 
     if (result?.ok) {
       const rawCb = searchParams.get('callbackUrl')
-      const next =
-        rawCb && rawCb.startsWith('/') && !rawCb.startsWith('//') ? rawCb : '/'
+      let next = '/'
+      if (rawCb) {
+        if (rawCb.startsWith('/') && !rawCb.startsWith('//')) {
+          next = rawCb
+        } else {
+          try {
+            const u = new URL(rawCb)
+            if (u.origin === window.location.origin) next = u.pathname + u.search
+          } catch {
+            /* ignore malformed callbackUrl */
+          }
+        }
+      }
       // Hard navigation so the session cookie from /api/auth/* is always sent on the next load
       // (avoids getting stuck on “Signing in…” if client-side routing races middleware).
       window.location.assign(next)
