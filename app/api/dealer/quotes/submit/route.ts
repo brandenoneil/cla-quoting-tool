@@ -5,11 +5,11 @@ import {
   createDeal,
   createNote,
   createTask,
-  createHubSpotQuote,
-  createLineItem,
   associateObjects,
   associateV3,
+  fetchQuoteTemplates,
 } from '@/lib/hubspot'
+import { pushQuoteDraftToHubSpot, resolveTemplateId } from '@/lib/pushHubSpotQuoteDraft'
 import { NextRequest } from 'next/server'
 import type { QuoteOption } from '@/types'
 
@@ -67,77 +67,6 @@ async function saveOneOption(
   })
 }
 
-async function pushDraftQuoteToHubSpot(quoteId: string): Promise<string> {
-  const quote = await prisma.quote.findUnique({ where: { id: quoteId } })
-  if (!quote) throw new Error(`Quote not found: ${quoteId}`)
-
-  const lineItems: Array<{ description: string; detail: string; qty: number; unitPrice: number; amount: number }> =
-    JSON.parse(quote.lineItemsJson)
-
-  const expirationDate = Date.now() + 30 * 86400000
-
-  const hsQuote = await createHubSpotQuote({
-    hs_title: `${quote.quoteNumber} — ${quote.company} — ${quote.machineModel}`,
-    hs_expiration_date: expirationDate,
-    hs_status: 'DRAFT',
-    hs_currency: 'USD',
-    hs_language: 'en',
-    hs_sender_company_name: 'Cutlite America, LLC',
-    hs_sender_company_address: '1075 Windward Ridge Parkway, Suite 120',
-    hs_sender_company_city: 'Alpharetta',
-    hs_sender_company_state: 'GA',
-    hs_sender_company_zip: '30005',
-    hs_sender_company_country: 'United States',
-  })
-
-  await new Promise((r) => setTimeout(r, 100))
-
-  // Type 64 = QUOTE_TO_DEAL
-  try {
-    await associateObjects('quotes', hsQuote.id, 'deals', quote.hubspotDealId, 64)
-  } catch {
-    try {
-      await associateV3('quotes', hsQuote.id, 'deals', quote.hubspotDealId, 'quote_to_deal')
-    } catch {
-      throw new Error('quote→deal association failed')
-    }
-  }
-
-  await new Promise((r) => setTimeout(r, 100))
-
-  for (const item of lineItems) {
-    const lineItem = await createLineItem({
-      name: item.description,
-      quantity: item.qty,
-      price: item.unitPrice,
-      amount: item.amount,
-      description: item.detail,
-    })
-
-    await new Promise((r) => setTimeout(r, 100))
-
-    // Type 67 = LINE_ITEM_TO_QUOTE
-    try {
-      await associateObjects('line_items', lineItem.id, 'quotes', hsQuote.id, 67)
-    } catch {
-      try {
-        await associateV3('line_items', lineItem.id, 'quotes', hsQuote.id, 'line_item_to_quote')
-      } catch {
-        throw new Error('line_item→quote association failed')
-      }
-    }
-
-    await new Promise((r) => setTimeout(r, 100))
-  }
-
-  await prisma.quote.update({
-    where: { id: quote.id },
-    data: { hubspotQuoteId: hsQuote.id },
-  })
-
-  return hsQuote.id
-}
-
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return new Response('Unauthorized', { status: 401 })
@@ -145,7 +74,7 @@ export async function POST(req: NextRequest) {
     return new Response('Forbidden', { status: 403 })
   }
 
-  const { formData, selectedOptions } = await req.json()
+  const { formData, selectedOptions, templateId: sharedTemplateId } = await req.json()
   const options: QuoteOption[] = selectedOptions ?? []
   if (options.length === 0) {
     return Response.json({ error: 'No options provided' }, { status: 400 })
@@ -213,25 +142,63 @@ export async function POST(req: NextRequest) {
     options.map(opt => saveOneOption(opt, formData, dealId, dealName, dealerEmail, dealerCompany))
   )
 
-  // 5. Immediately push each saved quote option into HubSpot as DRAFT for inside-sales review.
+  // 5. Push each quote to HubSpot with line items + matching quote template
   const hubspotDraftErrors: string[] = []
-  const pushedDrafts: Array<{ quoteId: string; quoteNumber: string; hubspotQuoteId: string }> = []
+  const pushedDrafts: Array<{
+    quoteId: string
+    quoteNumber: string
+    hubspotQuoteId: string
+    templateId: string | null
+  }> = []
+
+  let templates: Awaited<ReturnType<typeof fetchQuoteTemplates>> = []
+  try {
+    templates = await fetchQuoteTemplates()
+  } catch (err: any) {
+    hubspotDraftErrors.push(`Could not load HubSpot templates: ${err?.message ?? 'unknown error'}`)
+  }
 
   for (const q of quotes) {
     try {
-      const hubspotQuoteId = await pushDraftQuoteToHubSpot(q.id)
-      pushedDrafts.push({ quoteId: q.id, quoteNumber: q.quoteNumber, hubspotQuoteId })
+      const templateId = sharedTemplateId || resolveTemplateId(q.machineModel, templates)
+      if (!templateId && templates.length > 0) {
+        hubspotDraftErrors.push(
+          `${q.quoteNumber}: no HubSpot template matched "${q.machineModel}" — quote pushed without template`
+        )
+      }
+
+      const { hubspotQuoteId, templateId: appliedTemplateId } = await pushQuoteDraftToHubSpot(q.id, {
+        templateId,
+        templates,
+      })
+      pushedDrafts.push({
+        quoteId: q.id,
+        quoteNumber: q.quoteNumber,
+        hubspotQuoteId,
+        templateId: appliedTemplateId,
+      })
     } catch (err: any) {
       hubspotDraftErrors.push(`${q.quoteNumber}: ${err?.message ?? 'Draft push failed'}`)
     }
   }
 
   // 6. Add result note on the deal for internal visibility
+  const templateSummary = pushedDrafts
+    .map((p) => {
+      const tmpl = templates.find((t) => t.id === p.templateId)
+      return `${p.quoteNumber}${tmpl ? ` (${tmpl.name})` : ''}`
+    })
+    .join(', ')
+
   const pushSummaryBody = [
     `Dealer request quote push summary`,
     `Draft quotes created in HubSpot: ${pushedDrafts.length}/${quotes.length}`,
-    ...(hubspotDraftErrors.length ? [`Errors: ${hubspotDraftErrors.join(' | ')}`] : []),
-  ].join('\n')
+    templateSummary ? `Templates: ${templateSummary}` : '',
+    ...(hubspotDraftErrors.length ? [`Warnings: ${hubspotDraftErrors.join(' | ')}`] : []),
+  ]
+    .filter(Boolean)
+    .join('\n')
+
   try {
     const pushSummaryNote = await createNote(pushSummaryBody)
     await new Promise((r) => setTimeout(r, 100))
@@ -250,5 +217,6 @@ export async function POST(req: NextRequest) {
     dealName,
     hubspotDraftsCreated: pushedDrafts.length,
     hubspotDraftErrors,
+    templatesApplied: pushedDrafts.filter((p) => p.templateId).length,
   })
 }

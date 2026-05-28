@@ -501,6 +501,19 @@ export async function createHubSpotQuote(properties: Record<string, string | num
   return res.json()
 }
 
+/** Links a HubSpot quote to a quote template (required for a finished quote document in HubSpot). */
+export async function associateQuoteTemplate(hsQuoteId: string, templateId: string) {
+  try {
+    await associateObjects('quotes', hsQuoteId, 'quote_templates', templateId, 286)
+  } catch {
+    try {
+      await associateV3('quotes', hsQuoteId, 'quote_templates', templateId, 'quote_to_quote_template')
+    } catch {
+      throw new Error('quote→template association failed')
+    }
+  }
+}
+
 // ─── LINE ITEMS ───────────────────────────────────────────────────────────────
 
 export async function createLineItem(properties: Record<string, string | number>) {

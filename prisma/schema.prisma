@@ -14,7 +14,8 @@ model Quote {
   quoteNumber      String   @unique
   hubspotDealId    String
   hubspotDealName  String
-  hubspotQuoteId   String?
+  hubspotQuoteId      String?
+  hubspotTemplateId   String?
   company          String
   contactName      String
   contactEmail     String

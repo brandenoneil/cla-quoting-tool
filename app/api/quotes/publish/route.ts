@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import {
   createHubSpotQuote,
   associateObjects,
+  associateQuoteTemplate,
   createLineItem,
   updateDeal,
   createNote,
@@ -51,16 +52,11 @@ export async function POST(req: NextRequest) {
 
     await new Promise((r) => setTimeout(r, 100))
 
-    // 1b. Associate template → quote (non-critical — fails silently if type ID is wrong)
     if (templateId) {
       try {
-        await associateObjects('quotes', hsQuote.id, 'quote_templates', templateId, '286')
+        await associateQuoteTemplate(hsQuote.id, templateId)
       } catch {
-        try {
-          await associateV3('quotes', hsQuote.id, 'quote_templates', templateId, 'quote_to_quote_template')
-        } catch {
-          // Template association not supported via API for this portal — rep applies manually in HubSpot
-        }
+        // Template association not supported via API for this portal — rep applies manually in HubSpot
       }
       await new Promise((r) => setTimeout(r, 100))
     }
@@ -136,7 +132,11 @@ export async function POST(req: NextRequest) {
     // 6. Update local DB
     const updated = await prisma.quote.update({
       where: { id: quoteId },
-      data: { hubspotQuoteId: hsQuote.id, status: 'PUBLISHED' },
+      data: {
+        hubspotQuoteId: hsQuote.id,
+        hubspotTemplateId: templateId ?? null,
+        status: 'PUBLISHED',
+      },
     })
 
     return Response.json({

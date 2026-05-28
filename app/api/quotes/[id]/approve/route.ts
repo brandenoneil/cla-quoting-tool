@@ -5,11 +5,17 @@ import {
   createHubSpotQuote,
   associateObjects,
   associateV3,
+  associateQuoteTemplate,
   createLineItem,
   createNote,
   updateDeal,
   getDeal,
+  fetchQuoteTemplates,
 } from '@/lib/hubspot'
+import {
+  applyTemplateToExistingHubSpotQuote,
+  resolveTemplateId,
+} from '@/lib/pushHubSpotQuoteDraft'
 import { NextRequest } from 'next/server'
 import type { LineItem } from '@/types'
 
@@ -42,6 +48,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     let hsQuoteId = quote.hubspotQuoteId ?? null
     const alreadyInHubSpot = Boolean(hsQuoteId)
 
+    let templates: Awaited<ReturnType<typeof fetchQuoteTemplates>> = []
+    try {
+      templates = await fetchQuoteTemplates()
+    } catch {
+      /* non-fatal */
+    }
+    const templateId =
+      quote.hubspotTemplateId ||
+      resolveTemplateId(quote.machineModel, templates)
+
     if (!hsQuoteId) {
       const hsQuote = await createHubSpotQuote({
         hs_title: `${quote.quoteNumber} — ${quote.company} — ${quote.machineModel}`,
@@ -60,6 +76,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       hsQuoteId = createdHsQuoteId
 
       await new Promise((r) => setTimeout(r, 100))
+
+      if (templateId) {
+        try {
+          await associateQuoteTemplate(createdHsQuoteId, templateId)
+          await new Promise((r) => setTimeout(r, 100))
+        } catch {
+          console.error('quote→template association failed on approve')
+        }
+      }
 
       // 2. Associate quote → deal
       try {
@@ -93,6 +118,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         }
         await new Promise((r) => setTimeout(r, 100))
       }
+    } else if (templateId && !quote.hubspotTemplateId) {
+      try {
+        await applyTemplateToExistingHubSpotQuote(hsQuoteId, templateId)
+        await new Promise((r) => setTimeout(r, 100))
+      } catch {
+        console.error('quote→template association failed on existing HubSpot quote')
+      }
     }
 
     // 4. Advance deal stage if early
@@ -125,7 +157,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // 6. Update local DB
     const updated = await prisma.quote.update({
       where: { id: params.id },
-      data: { hubspotQuoteId: hsQuoteId, status: 'PUBLISHED' },
+      data: {
+        hubspotQuoteId: hsQuoteId,
+        hubspotTemplateId: templateId ?? quote.hubspotTemplateId,
+        status: 'PUBLISHED',
+      },
     })
 
     return Response.json({
