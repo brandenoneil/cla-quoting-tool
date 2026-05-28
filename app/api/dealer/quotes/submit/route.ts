@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     return new Response('Forbidden', { status: 403 })
   }
 
-  const { formData, selectedOptions, templateId: sharedTemplateId } = await req.json()
+  const { formData, selectedOptions } = await req.json()
   const options: QuoteOption[] = selectedOptions ?? []
   if (options.length === 0) {
     return Response.json({ error: 'No options provided' }, { status: 400 })
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
 
   for (const q of quotes) {
     try {
-      const templateId = sharedTemplateId || resolveTemplateId(q.machineModel, templates)
+      const templateId = resolveTemplateId(q.machineModel, templates)
       if (!templateId && templates.length > 0) {
         hubspotDraftErrors.push(
           `${q.quoteNumber}: no HubSpot template matched "${q.machineModel}" — quote pushed without template`

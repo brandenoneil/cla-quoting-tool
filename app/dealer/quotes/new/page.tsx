@@ -1,9 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { recommendTemplate } from '@/lib/templateMatcher'
-import type { QuoteTemplate } from '@/lib/hubspot'
 import StepIndicator from '@/components/StepIndicator'
 import DealerBrandHeader from '@/components/DealerBrandHeader'
 import DealerCustomerForm from '@/components/QuoteFlow/DealerCustomerForm'
@@ -47,9 +45,6 @@ export default function DealerNewQuotePage() {
   const [submittedQuotes, setSubmittedQuotes] = useState<SubmittedQuote[]>([])
   const [submitError, setSubmitError]   = useState('')
   const [submitWarning, setSubmitWarning] = useState('')
-  const [templates, setTemplates] = useState<QuoteTemplate[]>([])
-  const [templatesLoading, setTemplatesLoading] = useState(false)
-  const [selectedTemplateId, setSelectedTemplateId] = useState('')
 
   // ─── Step 1: Customer info ───────────────────────────────────────────────────
   function handleCustomerInfo(info: any) {
@@ -117,27 +112,6 @@ export default function DealerNewQuotePage() {
     })
   }
 
-  const primaryMachineModel =
-    selectedOptions[0]?.machineModel || formData?.machines?.[0]?.machineModel || ''
-
-  useEffect(() => {
-    if (step !== 4 || templates.length > 0 || templatesLoading) return
-    setTemplatesLoading(true)
-    fetch('/api/quotes/templates')
-      .then((r) => r.json())
-      .then((data) => {
-        setTemplates(data.templates ?? [])
-      })
-      .catch(() => {})
-      .finally(() => setTemplatesLoading(false))
-  }, [step, templates.length, templatesLoading])
-
-  useEffect(() => {
-    if (step !== 4 || templates.length === 0 || !primaryMachineModel) return
-    const rec = recommendTemplate(primaryMachineModel, templates)
-    if (rec) setSelectedTemplateId(rec.id)
-  }, [step, primaryMachineModel, templates])
-
   // ─── Step 4 → 5: Submit request ─────────────────────────────────────────────
   async function handleSubmitRequest() {
     if (selectedOptions.length === 0 || !formData) return
@@ -149,11 +123,7 @@ export default function DealerNewQuotePage() {
       const res = await fetch('/api/dealer/quotes/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          formData,
-          selectedOptions,
-          templateId: selectedTemplateId || undefined,
-        }),
+        body: JSON.stringify({ formData, selectedOptions }),
       })
       const json = await res.json()
       if (json.error) throw new Error(json.error)
@@ -305,41 +275,6 @@ export default function DealerNewQuotePage() {
                         <span className="text-xs text-gray-400">click a card to deselect</span>
                       </div>
 
-                      <div>
-                        <label className="text-xs text-gray-500 block mb-1">
-                          HubSpot quote template
-                          {templatesLoading && (
-                            <span className="ml-1 text-gray-400">Loading…</span>
-                          )}
-                        </label>
-                        {templates.length > 0 ? (
-                          <select
-                            value={selectedTemplateId}
-                            onChange={(e) => setSelectedTemplateId(e.target.value)}
-                            className="cla-input py-2 text-sm w-full"
-                          >
-                            <option value="">Auto-match from machine model</option>
-                            {templates.map((t) => {
-                              const recommended = recommendTemplate(primaryMachineModel, templates)
-                              return (
-                                <option key={t.id} value={t.id}>
-                                  {t.id === recommended?.id ? '★ ' : ''}
-                                  {t.name}
-                                </option>
-                              )
-                            })}
-                          </select>
-                        ) : !templatesLoading ? (
-                          <p className="text-xs text-gray-400 italic">
-                            Templates unavailable — server will auto-match when possible
-                          </p>
-                        ) : null}
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          Applies the Cutlite quote layout in HubSpot so inside sales receives a
-                          finished draft, not a blank quote shell.
-                        </p>
-                      </div>
-
                       {submitError && (
                         <div className="cla-alert-error">{submitError}</div>
                       )}
@@ -443,8 +378,6 @@ export default function DealerNewQuotePage() {
                     setQuoteOptions([])
                     setSelectedOptions([])
                     setSubmittedQuotes([])
-                    setSelectedTemplateId('')
-                    setTemplates([])
                   }}
                   className="cla-btn-primary flex-1 py-3"
                 >
