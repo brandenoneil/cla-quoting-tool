@@ -73,7 +73,8 @@ function autoCheckFromIntake(intakeData: Record<string, any>): Partial<MachineOp
   return {
     machineModel: model,
     machinePower: intakeData.power || '6kW',
-    laserSource: coerceLaserSourceForModel(canonicalLaserSource(intakeData.laser), model),
+    // Do not force back to sheet defaults here; preserve user/AI laser intent.
+    laserSource: canonicalLaserSource(intakeData.laser),
     bevelHead: coerceBevelHeadForModel(rawBevel, model),
     smartMix: notes.includes('smart mix') || notes.includes('gas mix'),
     smartChanger: notes.includes('smart changer') || notes.includes('nozzle change'),
@@ -176,7 +177,8 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
       const next = [...prev]
       const merged = { ...next[idx], ...patch }
       if (patch.machineModel !== undefined || patch.laserSource !== undefined || patch.bevelHead !== undefined) {
-        merged.laserSource = coerceLaserSourceForModel(merged.laserSource, merged.machineModel)
+        // Keep the selected brand, only canonicalize spelling; do not lock to sheet-only laser.
+        merged.laserSource = canonicalLaserSource(merged.laserSource)
         merged.bevelHead = coerceBevelHeadForModel(merged.bevelHead, merged.machineModel)
       }
       next[idx] = merged
@@ -513,7 +515,7 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
                 <label className={labelCls}>Laser Source</label>
                 <div className="flex gap-2 flex-wrap pt-1">
                   {LASER_SOURCE_LABELS.map((laser) => {
-                    const laserDisabled = !allowedLasers.includes(laser)
+                    const laserDisabled = false
                     return (
                       <label
                         key={laser}
@@ -537,6 +539,12 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
                     )
                   })}
                 </div>
+                {!allowedLasers.includes(canonicalLaserSource(m.laserSource)) && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    Selected laser source is not priced on the Feb 2026 sheet for this exact model. You can continue,
+                    but pricing may require manual confirmation.
+                  </p>
+                )}
               </div>
             </div>
           </div>
