@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { generateQuotePDF } from '@/lib/pdf'
 import { NextRequest } from 'next/server'
 
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session) return new Response('Unauthorized', { status: 401 })
@@ -18,8 +21,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    const pdfBuffer = await generateQuotePDF(params.id, baseUrl)
+    const baseUrl = process.env.NEXTAUTH_URL || req.nextUrl.origin
+    const pdfBuffer = await generateQuotePDF(params.id, baseUrl, req.headers.get('cookie'))
 
     return new Response(pdfBuffer as unknown as BodyInit, {
       headers: {

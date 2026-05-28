@@ -4,7 +4,14 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   experimental: {
-    serverComponentsExternalPackages: ['puppeteer', '@prisma/client', 'prisma', 'pdf-parse', 'mammoth'],
+    serverComponentsExternalPackages: [
+      'puppeteer-core',
+      '@sparticuz/chromium',
+      '@prisma/client',
+      'prisma',
+      'pdf-parse',
+      'mammoth',
+    ],
   },
 }
 

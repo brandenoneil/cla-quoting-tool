@@ -1,4 +1,10 @@
 {
   "buildCommand": "prisma generate && prisma db push && sh -c 'DATABASE_URL=\"$DIRECT_URL\" prisma db seed' && next build",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "functions": {
+    "app/api/quotes/[id]/pdf/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  }
 }

@@ -1,17 +1,46 @@
-import puppeteer from 'puppeteer'
+import type { Browser } from 'puppeteer-core'
 
-export async function generateQuotePDF(quoteId: string, baseUrl: string): Promise<Buffer> {
-  const browser = await puppeteer.launch({
+const IS_VERCEL = !!process.env.VERCEL
+
+async function launchBrowser(): Promise<Browser> {
+  if (IS_VERCEL) {
+    const chromium = await import('@sparticuz/chromium')
+    const puppeteer = await import('puppeteer-core')
+    chromium.default.setGraphicsMode = false
+    return puppeteer.default.launch({
+      args: chromium.default.args,
+      defaultViewport: { width: 1200, height: 1600 },
+      executablePath: await chromium.default.executablePath(),
+      headless: true,
+    })
+  }
+
+  const puppeteer = await import('puppeteer')
+  return puppeteer.default.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  })
+  }) as unknown as Browser
+}
+
+export async function generateQuotePDF(
+  quoteId: string,
+  baseUrl: string,
+  cookieHeader?: string | null
+): Promise<Buffer> {
+  const browser = await launchBrowser()
 
   try {
     const page = await browser.newPage()
     await page.setViewport({ width: 1200, height: 1600 })
 
-    const url = `${baseUrl}/quotes/${quoteId}/preview?pdf=true`
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 })
+    if (cookieHeader) {
+      await page.setExtraHTTPHeaders({ cookie: cookieHeader })
+    }
+
+    const url = `${baseUrl.replace(/\/$/, '')}/quotes/${quoteId}/preview?pdf=true`
+    await page.goto(url, { waitUntil: 'load', timeout: 60_000 })
+    await page.waitForSelector('#quote-document', { timeout: 30_000 })
+    await page.evaluate(() => document.fonts.ready)
 
     const pdfBuffer = await page.pdf({
       format: 'Letter',
