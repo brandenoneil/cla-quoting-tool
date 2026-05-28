@@ -26,15 +26,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   try {
     const quote = await prisma.quote.findUnique({ where: { id: params.id } })
     if (!quote) return Response.json({ error: 'Quote not found' }, { status: 404 })
-    if (quote.status !== 'PENDING_APPROVAL') {
-      return Response.json({ error: 'Quote is not pending approval' }, { status: 400 })
+
+    const approvableStatuses = ['PENDING_APPROVAL', 'REVIEWING']
+    if (!approvableStatuses.includes(quote.status)) {
+      return Response.json(
+        { error: `Quote cannot be approved from status "${quote.status}".` },
+        { status: 400 }
+      )
     }
 
     const lineItems: LineItem[] = JSON.parse(quote.lineItemsJson)
     const expirationDate = Date.now() + 30 * 86400000
 
-    // 1. Create HubSpot Quote (or reuse draft created during dealer submission)
+    // 1. Create HubSpot quote + line items unless dealer submit already pushed a draft.
     let hsQuoteId = quote.hubspotQuoteId ?? null
+    const alreadyInHubSpot = Boolean(hsQuoteId)
+
     if (!hsQuoteId) {
       const hsQuote = await createHubSpotQuote({
         hs_title: `${quote.quoteNumber} — ${quote.company} — ${quote.machineModel}`,
@@ -99,7 +106,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // 5. Log approval note
     const noteBody = [
-      `Quote ${quote.quoteNumber} APPROVED by ${session.user?.email}`,
+      alreadyInHubSpot
+        ? `Quote ${quote.quoteNumber} APPROVED by ${session.user?.email} (HubSpot draft was already on deal).`
+        : `Quote ${quote.quoteNumber} APPROVED and published to HubSpot by ${session.user?.email}`,
       `Package: ${quote.tier} — ${quote.packageName}`,
       `Total: $${quote.totalAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
       quote.submittedByDealer ? `Originally submitted by dealer: ${quote.submittedByDealer}` : '',
