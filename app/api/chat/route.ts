@@ -4,18 +4,19 @@ import { getAnthropicClient, INTAKE_SYSTEM_PROMPT } from '@/lib/anthropic'
 import { NextRequest } from 'next/server'
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return new Response('Unauthorized', { status: 401 })
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) return new Response('Unauthorized', { status: 401 })
 
-  const { messages, dealContext } = await req.json()
+    const { messages, dealContext } = await req.json()
 
-  const client = getAnthropicClient()
+    const client = getAnthropicClient()
 
-  let systemPrompt = INTAKE_SYSTEM_PROMPT
+    let systemPrompt = INTAKE_SYSTEM_PROMPT
 
-  if (dealContext) {
-    const { companyDealHistory, ...coreDeal } = dealContext
-    systemPrompt += `\n\nCurrent deal context: ${JSON.stringify(coreDeal)}`
+    if (dealContext) {
+      const { companyDealHistory, ...coreDeal } = dealContext
+      systemPrompt += `\n\nCurrent deal context: ${JSON.stringify(coreDeal)}`
 
     if (companyDealHistory?.length > 0) {
       const historyText = companyDealHistory.map((d: any) => {
@@ -57,42 +58,46 @@ export async function POST(req: NextRequest) {
     } else {
       systemPrompt += `\n\nDEAL HISTORY: No previous deals found in HubSpot CRM for this company. This may be their first deal, or records may exist under a different name.`
     }
-  }
+    }
 
-  const stream = await client.messages.stream({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages: messages.map((m: { role: string; content: string }) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    })),
-  })
+    const stream = await client.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: messages.map((m: { role: string; content: string }) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+    })
 
-  const encoder = new TextEncoder()
+    const encoder = new TextEncoder()
 
-  const readable = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            const data = `data: ${JSON.stringify({ text: chunk.delta.text })}\n\n`
-            controller.enqueue(encoder.encode(data))
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              const data = `data: ${JSON.stringify({ text: chunk.delta.text })}\n\n`
+              controller.enqueue(encoder.encode(data))
+            }
           }
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          controller.close()
+        } catch (err) {
+          controller.error(err)
         }
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-        controller.close()
-      } catch (err) {
-        controller.error(err)
-      }
-    },
-  })
+      },
+    })
 
-  return new Response(readable, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    },
-  })
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Chat service unavailable'
+    return Response.json({ error: message }, { status: 500 })
+  }
 }

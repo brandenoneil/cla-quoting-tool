@@ -54,19 +54,37 @@ export default function IntakeChat({ dealContext, onQuoteDataExtracted }: Props)
     setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
 
     try {
+      const controller = new AbortController()
+      const timeoutMs = 45000
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           messages: updatedMessages,
           dealContext,
         }),
       })
+      clearTimeout(timeoutId)
+
+      if (!res.ok) {
+        let details = ''
+        try {
+          const data = await res.json()
+          details = data?.error ? ` ${data.error}` : ''
+        } catch {
+          /* ignore json parse failures */
+        }
+        throw new Error(`Chat request failed (${res.status}).${details}`)
+      }
 
       const reader = res.body?.getReader()
+      if (!reader) throw new Error('No streaming response from chat service.')
       const decoder = new TextDecoder()
 
-      while (reader) {
+      while (true) {
         const { done, value } = await reader.read()
         if (done) break
         const text = decoder.decode(value)
@@ -95,12 +113,16 @@ export default function IntakeChat({ dealContext, onQuoteDataExtracted }: Props)
         // Small delay so user can see the response before auto-advancing
         setTimeout(() => onQuoteDataExtracted(quoteData), 1500)
       }
-    } catch (_err: any) {
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Chat timed out. Please try again.'
+          : 'Sorry, there was an error. Please try again.'
       setMessages((prev) => {
         const updated = [...prev]
         updated[assistantIndex] = {
           role: 'assistant',
-          content: 'Sorry, there was an error. Please try again.',
+          content: message,
         }
         return updated
       })
