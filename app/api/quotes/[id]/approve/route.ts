@@ -33,54 +33,59 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const lineItems: LineItem[] = JSON.parse(quote.lineItemsJson)
     const expirationDate = Date.now() + 30 * 86400000
 
-    // 1. Create HubSpot Quote
-    const hsQuote = await createHubSpotQuote({
-      hs_title: `${quote.quoteNumber} — ${quote.company} — ${quote.machineModel}`,
-      hs_expiration_date: expirationDate,
-      hs_status: 'DRAFT',
-      hs_currency: 'USD',
-      hs_language: 'en',
-      hs_sender_company_name: 'Cutlite America, LLC',
-      hs_sender_company_address: '1075 Windward Ridge Parkway, Suite 120',
-      hs_sender_company_city: 'Alpharetta',
-      hs_sender_company_state: 'GA',
-      hs_sender_company_zip: '30005',
-      hs_sender_company_country: 'United States',
-    })
-
-    await new Promise((r) => setTimeout(r, 100))
-
-    // 2. Associate quote → deal
-    try {
-      await associateObjects('quotes', hsQuote.id, 'deals', quote.hubspotDealId, 64)
-    } catch {
-      try {
-        await associateV3('quotes', hsQuote.id, 'deals', quote.hubspotDealId, 'quote_to_deal')
-      } catch {
-        console.error('quote→deal association failed')
-      }
-    }
-
-    await new Promise((r) => setTimeout(r, 100))
-
-    // 3. Create line items and associate
-    for (const item of lineItems) {
-      const lineItem = await createLineItem({
-        name: item.description,
-        quantity: item.qty,
-        price: item.unitPrice,
-        amount: item.amount,
-        description: item.detail,
+    // 1. Create HubSpot Quote (or reuse draft created during dealer submission)
+    let hsQuoteId = quote.hubspotQuoteId ?? null
+    if (!hsQuoteId) {
+      const hsQuote = await createHubSpotQuote({
+        hs_title: `${quote.quoteNumber} — ${quote.company} — ${quote.machineModel}`,
+        hs_expiration_date: expirationDate,
+        hs_status: 'DRAFT',
+        hs_currency: 'USD',
+        hs_language: 'en',
+        hs_sender_company_name: 'Cutlite America, LLC',
+        hs_sender_company_address: '1075 Windward Ridge Parkway, Suite 120',
+        hs_sender_company_city: 'Alpharetta',
+        hs_sender_company_state: 'GA',
+        hs_sender_company_zip: '30005',
+        hs_sender_company_country: 'United States',
       })
+      const createdHsQuoteId = hsQuote.id
+      hsQuoteId = createdHsQuoteId
+
       await new Promise((r) => setTimeout(r, 100))
+
+      // 2. Associate quote → deal
       try {
-        await associateObjects('line_items', lineItem.id, 'quotes', hsQuote.id, 67)
+        await associateObjects('quotes', createdHsQuoteId, 'deals', quote.hubspotDealId, 64)
       } catch {
         try {
-          await associateV3('line_items', lineItem.id, 'quotes', hsQuote.id, 'line_item_to_quote')
-        } catch {}
+          await associateV3('quotes', createdHsQuoteId, 'deals', quote.hubspotDealId, 'quote_to_deal')
+        } catch {
+          console.error('quote→deal association failed')
+        }
       }
+
       await new Promise((r) => setTimeout(r, 100))
+
+      // 3. Create line items and associate
+      for (const item of lineItems) {
+        const lineItem = await createLineItem({
+          name: item.description,
+          quantity: item.qty,
+          price: item.unitPrice,
+          amount: item.amount,
+          description: item.detail,
+        })
+        await new Promise((r) => setTimeout(r, 100))
+        try {
+          await associateObjects('line_items', lineItem.id, 'quotes', createdHsQuoteId, 67)
+        } catch {
+          try {
+            await associateV3('line_items', lineItem.id, 'quotes', createdHsQuoteId, 'line_item_to_quote')
+          } catch {}
+        }
+        await new Promise((r) => setTimeout(r, 100))
+      }
     }
 
     // 4. Advance deal stage if early
@@ -111,12 +116,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // 6. Update local DB
     const updated = await prisma.quote.update({
       where: { id: params.id },
-      data: { hubspotQuoteId: hsQuote.id, status: 'PUBLISHED' },
+      data: { hubspotQuoteId: hsQuoteId, status: 'PUBLISHED' },
     })
 
     return Response.json({
       success: true,
-      hubspotQuoteId: hsQuote.id,
+      hubspotQuoteId: hsQuoteId,
       dealLink: `https://app.hubspot.com/contacts/45270912/record/0-3/${quote.hubspotDealId}`,
       quote: updated,
     })

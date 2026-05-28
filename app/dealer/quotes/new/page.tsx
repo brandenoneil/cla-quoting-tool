@@ -44,6 +44,7 @@ export default function DealerNewQuotePage() {
   const [submitting, setSubmitting]     = useState(false)
   const [submittedQuotes, setSubmittedQuotes] = useState<SubmittedQuote[]>([])
   const [submitError, setSubmitError]   = useState('')
+  const [submitWarning, setSubmitWarning] = useState('')
 
   // ─── Step 1: Customer info ───────────────────────────────────────────────────
   function handleCustomerInfo(info: any) {
@@ -116,6 +117,7 @@ export default function DealerNewQuotePage() {
     if (selectedOptions.length === 0 || !formData) return
     setSubmitting(true)
     setSubmitError('')
+    setSubmitWarning('')
 
     try {
       const res = await fetch('/api/dealer/quotes/submit', {
@@ -134,6 +136,12 @@ export default function DealerNewQuotePage() {
         name: q.packageName,
         totalPrice: q.totalAmount,
       })))
+      const draftErrors: string[] = json.hubspotDraftErrors ?? []
+      if (draftErrors.length > 0) {
+        setSubmitWarning(
+          `Some quote drafts could not be pushed to HubSpot automatically: ${draftErrors.join(' · ')}`
+        )
+      }
       setStep(5)
     } catch (e: any) {
       setSubmitError(e.message)
@@ -342,11 +350,17 @@ export default function DealerNewQuotePage() {
                   <div>
                     <p className="text-sm font-semibold text-amber-800">Pending Review</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      A Cutlite America team member will review and approve this quote, typically within 1 business day.
+                      Draft quote(s) were pushed to HubSpot for inside-sales review and approval, typically within 1 business day.
                     </p>
                   </div>
                 </div>
               </div>
+
+              {submitWarning && (
+                <div className="cla-alert-error mb-6 max-w-md mx-auto text-left">
+                  {submitWarning}
+                </div>
+              )}
 
               <div className="flex gap-3 max-w-md mx-auto">
                 <button
