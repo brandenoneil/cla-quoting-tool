@@ -43,6 +43,10 @@ export default function DealSelect({ onDealSelected }: Props) {
   const companyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (selectedCompany && companyQuery === selectedCompany.properties.name) {
+      return
+    }
+
     clearTimeout(companyDebounce.current)
     if (companyQuery.length < 2) {
       setCompanies([])
@@ -104,7 +108,7 @@ export default function DealSelect({ onDealSelected }: Props) {
         setCompanySearching(false)
       }
     }, 300)
-  }, [companyQuery])
+  }, [companyQuery, selectedCompany])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -120,6 +124,7 @@ export default function DealSelect({ onDealSelected }: Props) {
     setSelectedCompany(c)
     setNewDeal(d => ({ ...d, companyName: c.properties.name }))
     setCompanyQuery(c.properties.name)
+    setCompanies([])
     setCompanyOpen(false)
   }
 
@@ -269,7 +274,9 @@ export default function DealSelect({ onDealSelected }: Props) {
                     setSelectedCompany(null)
                     setNewDeal(d => ({ ...d, companyName: '' }))
                   }}
-                  onFocus={() => { if (companies.length > 0) setCompanyOpen(true) }}
+                  onFocus={() => {
+                    if (!selectedCompany && companies.length > 0) setCompanyOpen(true)
+                  }}
                   placeholder="Search HubSpot companies…"
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B6FC8] text-sm pr-8 ${
                     selectedCompany ? 'border-green-400 bg-green-50' : 'border-gray-300'

@@ -35,6 +35,7 @@ export default function DealerCustomerForm({ onContinue }: Props) {
   const [results, setResults]       = useState<CompanyResult[]>([])
   const [searching, setSearching]   = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState<CompanyResult | null>(null)
   const debounceRef = useRef<NodeJS.Timeout>()
   const wrapperRef  = useRef<HTMLDivElement>(null)
 
@@ -49,8 +50,12 @@ export default function DealerCustomerForm({ onContinue }: Props) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  // Debounced search on company name change
+  // Debounced search on company name change (skip after CRM pick — otherwise dropdown reopens)
   useEffect(() => {
+    if (selectedCompany && company === selectedCompany.name) {
+      return
+    }
+
     clearTimeout(debounceRef.current)
     if (company.length < 2) {
       setResults([])
@@ -105,9 +110,10 @@ export default function DealerCustomerForm({ onContinue }: Props) {
       }
     }, 300)
     return () => clearTimeout(debounceRef.current)
-  }, [company])
+  }, [company, selectedCompany])
 
   function selectCompany(result: CompanyResult) {
+    setSelectedCompany(result)
     setCompany(result.name)
     setDropdownOpen(false)
     setResults([])
@@ -150,22 +156,43 @@ export default function DealerCustomerForm({ onContinue }: Props) {
           <label className={labelCls}>Company Name *</label>
           <div className="relative">
             <input
-              className={inputCls + (dropdownOpen ? ' rounded-b-none border-b-0' : '')}
+              className={
+                inputCls +
+                (dropdownOpen ? ' rounded-b-none border-b-0' : '') +
+                (selectedCompany ? ' border-green-400 bg-green-50/50' : '')
+              }
               placeholder="Acme Manufacturing Co."
               value={company}
               autoComplete="off"
               onChange={e => {
+                setSelectedCompany(null)
                 setCompany(e.target.value)
-                setDropdownOpen(false) // will reopen after debounce if results come back
+                setDropdownOpen(false)
               }}
-              onFocus={() => results.length > 0 && setDropdownOpen(true)}
+              onFocus={() => {
+                if (!selectedCompany && results.length > 0) setDropdownOpen(true)
+              }}
             />
 
-            {/* Spinner */}
+            {/* Spinner / selected indicator */}
             {searching && (
               <div className="absolute right-3 top-1/2 -translate-y-1/2">
                 <div className="w-4 h-4 border-2 border-[#1B6FC8] border-t-transparent rounded-full animate-spin" />
               </div>
+            )}
+            {selectedCompany && !searching && (
+              <svg
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+                aria-hidden
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
             )}
 
             {/* Dropdown */}
@@ -197,7 +224,7 @@ export default function DealerCustomerForm({ onContinue }: Props) {
               </div>
             )}
           </div>
-          {dropdownOpen && results.length > 0 && (
+          {dropdownOpen && results.length > 0 && !selectedCompany && (
             <p className="text-[11px] text-gray-400 mt-1">Select to auto-fill contact info, or continue typing to enter manually.</p>
           )}
           {crmBanner && (
