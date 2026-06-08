@@ -240,14 +240,87 @@ function PowerSlider({
   )
 }
 
+function modelFamilyName(model: string): string {
+  return model.replace(/\s\d{4,5}$/, '').trim()
+}
+
+function ConfigHighlight({
+  label,
+  value,
+  highlight,
+}: {
+  label: string
+  value: string
+  highlight: boolean
+}) {
+  if (!value) return null
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{label}</span>
+      <span
+        className={
+          highlight
+            ? 'text-sm font-bold text-[#0A2E52] bg-[#E6F1FB] border border-[#1B6FC8]/35 rounded-md px-2 py-0.5 tabular-nums'
+            : 'text-sm text-gray-600 tabular-nums'
+        }
+      >
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function NeighborModeToggle({
+  value,
+  onChange,
+}: {
+  value: NeighborMode
+  onChange: (mode: NeighborMode) => void
+}) {
+  return (
+    <div className="flex flex-wrap gap-3 items-center justify-between">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Compare by</p>
+        <p className="text-[11px] text-gray-400 mt-0.5">
+          {value === 'format'
+            ? 'Pricing cards show the previous and next table size on the sheet (same power & laser).'
+            : 'Pricing cards show lower and higher power on the same machine format.'}
+        </p>
+      </div>
+      <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 shrink-0">
+        <button
+          type="button"
+          className={`px-3 py-1.5 text-sm rounded-md ${
+            value === 'format' ? 'bg-white shadow text-[#0A2E52] font-semibold' : 'text-gray-600'
+          }`}
+          onClick={() => onChange('format')}
+        >
+          Table size ±1
+        </button>
+        <button
+          type="button"
+          className={`px-3 py-1.5 text-sm rounded-md ${
+            value === 'power' ? 'bg-white shadow text-[#0A2E52] font-semibold' : 'text-gray-600'
+          }`}
+          onClick={() => onChange('power')}
+        >
+          Power ±step
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function SlotCard({
   slot,
   emphasis,
   neighborMode,
+  targetSlot,
 }: {
   slot: PriceCheckSlot | null
   emphasis: 'down' | 'target' | 'up'
   neighborMode: NeighborMode
+  targetSlot?: PriceCheckSlot
 }) {
   const border =
     emphasis === 'target'
@@ -265,6 +338,11 @@ function SlotCard({
           ? 'Lower power'
           : 'Higher power'
 
+  const priceDelta =
+    slot && targetSlot && emphasis !== 'target'
+      ? slot.totalPrice - targetSlot.totalPrice
+      : null
+
   if (!slot) {
     return (
       <div className={`rounded-xl border ${border} p-4 opacity-70`}>
@@ -274,13 +352,29 @@ function SlotCard({
     )
   }
 
+  const laserShort = slot.laserLabel.replace(/\s+Photonics/i, '').trim() || slot.laserLabel
+  const highlightTable = neighborMode === 'format'
+  const highlightPower = neighborMode === 'power'
+
   return (
-    <div className={`rounded-xl border ${border} p-4 flex flex-col min-h-[180px]`}>
+    <div className={`rounded-xl border ${border} p-4 flex flex-col min-h-[200px]`}>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{title}</p>
-      <p className="mt-2 text-sm font-semibold text-[#0A2E52] leading-snug">{slot.label}</p>
-      {tableSize ? <p className="text-xs text-gray-500 mt-0.5">Table {tableSize}</p> : null}
+      <p className="mt-2 text-sm font-semibold text-[#0A2E52] leading-snug">{modelFamilyName(slot.model)}</p>
+
+      <div className="mt-3 space-y-2 rounded-lg border border-gray-100 bg-white/70 px-3 py-2.5">
+        <ConfigHighlight label="Table size" value={tableSize || '—'} highlight={highlightTable} />
+        <ConfigHighlight label="Power" value={slot.power} highlight={highlightPower} />
+        <ConfigHighlight label="Laser" value={laserShort} highlight={false} />
+      </div>
+
       <div className="mt-auto pt-4 space-y-1">
         <p className="text-2xl font-bold text-[#0A2E52]">{fmtUsd(slot.totalPrice)}</p>
+        {priceDelta !== null && priceDelta !== 0 && (
+          <p className={`text-xs font-semibold ${priceDelta > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+            {priceDelta > 0 ? '+' : '−'}
+            {fmtUsd(Math.abs(priceDelta))} vs your configuration
+          </p>
+        )}
         <p className="text-xs text-gray-500">
           Subtotal {fmtUsd(slot.subtotal)} · Freight {fmtUsd(slot.freight)}
         </p>
@@ -417,30 +511,6 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
         </header>
 
         <section className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-6">
-          <div className="flex flex-wrap gap-2 items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Neighbor mode</span>
-            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
-              <button
-                type="button"
-                className={`px-3 py-1.5 text-sm rounded-md ${
-                  neighborMode === 'format' ? 'bg-white shadow text-[#0A2E52] font-semibold' : 'text-gray-600'
-                }`}
-                onClick={() => setNeighborMode('format')}
-              >
-                Table size ±1
-              </button>
-              <button
-                type="button"
-                className={`px-3 py-1.5 text-sm rounded-md ${
-                  neighborMode === 'power' ? 'bg-white shadow text-[#0A2E52] font-semibold' : 'text-gray-600'
-                }`}
-                onClick={() => setNeighborMode('power')}
-              >
-                Power ±step
-              </button>
-            </div>
-          </div>
-
           <label className="block space-y-1">
             <span className="text-xs font-medium text-gray-600">Machine line</span>
             <select
@@ -550,22 +620,40 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
           </div>
         </section>
 
-        {result && (
-          <section className="space-y-3">
-            <p className="text-xs text-gray-500">{result.disclaimer}</p>
-            {result.mode === 'format' && (
-              <p className="text-xs text-gray-500">
-                Table-size neighbors follow the Feb 2026 sheet model order (numeric size codes), not table area. A
-                &quot;next&quot; size can cost less — e.g. 25.0 × 3.0 m vs 24.0 × 3.5 m.
-              </p>
-            )}
-            <div className="grid md:grid-cols-3 gap-4 items-stretch">
-              <SlotCard slot={result.down} emphasis="down" neighborMode={result.mode} />
-              <SlotCard slot={result.target} emphasis="target" neighborMode={result.mode} />
-              <SlotCard slot={result.up} emphasis="up" neighborMode={result.mode} />
-            </div>
-          </section>
-        )}
+        <section className="space-y-4">
+          <NeighborModeToggle value={neighborMode} onChange={setNeighborMode} />
+
+          {result && (
+            <>
+              <p className="text-xs text-gray-500">{result.disclaimer}</p>
+              {result.mode === 'format' && (
+                <p className="text-xs text-gray-500">
+                  Table-size neighbors follow the Feb 2026 sheet model order (numeric size codes), not table area. A
+                  &quot;next&quot; size can cost less — e.g. 25.0 × 3.0 m vs 24.0 × 3.5 m.
+                </p>
+              )}
+              <div className="grid md:grid-cols-3 gap-4 items-stretch">
+                <SlotCard
+                  slot={result.down}
+                  emphasis="down"
+                  neighborMode={result.mode}
+                  targetSlot={result.target}
+                />
+                <SlotCard slot={result.target} emphasis="target" neighborMode={result.mode} />
+                <SlotCard
+                  slot={result.up}
+                  emphasis="up"
+                  neighborMode={result.mode}
+                  targetSlot={result.target}
+                />
+              </div>
+            </>
+          )}
+
+          {!result && loading && (
+            <p className="text-sm text-gray-500 tabular-nums">Loading price comparison…</p>
+          )}
+        </section>
       </main>
     </div>
   )
