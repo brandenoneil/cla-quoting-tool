@@ -620,7 +620,7 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
                     catalog={priceCheckCatalog}
                     familyId={catalogDraft.familyId}
                     sizeCode={catalogDraft.sizeCode}
-                    machinePower={catalogDraft.machinePower}
+                    machinePower={m.machinePower}
                     laserSource={m.laserSource}
                     onFamilyChange={(familyId) => {
                       const machine = priceCheckCatalog.find((entry) => entry.id === familyId)

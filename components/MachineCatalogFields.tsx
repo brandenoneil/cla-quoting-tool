@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import type { PriceCheckMachineOptionEnriched } from '@/lib/priceCheckClient'
 import { resolveSheetModel } from '@/lib/priceCheckClient'
-import { LASER_FALLBACK, POWER_FALLBACK } from '@/lib/priceCheckFormHelpers'
+import { LASER_FALLBACK, POWER_FALLBACK, buildPowerSliderOptions } from '@/lib/priceCheckFormHelpers'
 import { PowerSlider, TableSizeSlider } from '@/components/PriceCheckSliders'
 
 interface Props {
@@ -42,9 +42,13 @@ export default function MachineCatalogFields({
   const powerChoices = useMemo(() => {
     const size = sizes.find((s) => s.code === sizeValue)
     const kws = size?.kwByLaser[laserSource] ?? size?.kwByLaser[LASER_FALLBACK[0]] ?? []
+    const sheetModel = size?.sheetModel ?? resolveSheetModel(catalog, familyValue, sizeValue)
+    if (kws.length && sheetModel) {
+      return buildPowerSliderOptions(kws, machinePower, sheetModel)
+    }
     if (kws.length) return kws.map((k) => `${k}kW`)
     return [...POWER_FALLBACK]
-  }, [sizes, sizeValue, laserSource])
+  }, [sizes, sizeValue, laserSource, machinePower, catalog, familyValue])
 
   const powerValue = powerChoices.includes(machinePower) ? machinePower : powerChoices[0] ?? '20kW'
   const machineModel = resolveSheetModel(catalog, familyValue, sizeValue)

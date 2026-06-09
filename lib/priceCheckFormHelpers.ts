@@ -32,16 +32,55 @@ export function parseKwLabel(power: string): number {
   return m ? parseInt(m[1], 10) : 6
 }
 
+/** Machine lines that can be quoted above the current sheet ladder (e.g. 60kW on Fiber HD). */
+export function modelSupports60Kw(sheetModel: string): boolean {
+  const norm = sheetModel.trim().toLowerCase()
+  return (
+    norm.includes('fiber hd') ||
+    norm.includes('plus evo') ||
+    norm.includes('plus bevel')
+  )
+}
+
+/** Sheet kW steps plus off-sheet selections (e.g. 60kW when the sheet tops out at 50kW). */
+export function buildPowerSliderOptions(
+  sheetKws: number[],
+  machinePower: string,
+  sheetModel: string
+): string[] {
+  const kws = new Set(sheetKws)
+  const cur = parseKwLabel(machinePower)
+  if (cur > 0) kws.add(cur)
+
+  if (modelSupports60Kw(sheetModel) && !kws.has(60)) {
+    const maxSheet = sheetKws.length ? Math.max(...sheetKws) : 0
+    if (maxSheet >= 20 && maxSheet < 60) {
+      kws.add(60)
+    }
+  }
+
+  return Array.from(kws)
+    .sort((a, b) => a - b)
+    .map((k) => `${k}kW`)
+}
+
 export function pickDefaultSize(machine: PriceCheckMachineOptionEnriched | undefined): string {
   if (!machine?.sizes.length) return ''
   const prefer4020 = machine.sizes.find((s) => s.code === '4020')
   return prefer4020?.code ?? machine.sizes[0].code
 }
 
-export function snapPower(kws: number[], current: string): string {
+export function snapPower(kws: number[], current: string, sheetModel = ''): string {
   if (!kws.length) return current
   const cur = parseKwLabel(current)
   if (kws.includes(cur)) return `${cur}kW`
+
+  if (sheetModel) {
+    const options = buildPowerSliderOptions(kws, current, sheetModel)
+    const curLabel = `${cur}kW`
+    if (options.includes(curLabel)) return curLabel
+  }
+
   let pick = kws[0]!
   let best = Infinity
   for (const k of kws) {
@@ -67,7 +106,9 @@ export function constrainCatalogSelection(
     : size.allowedLasers[0] ?? 'IPG'
   const bevel = coerceBevelForModel(draft.bevelHead, size.sheetModel)
   const kws = size.kwByLaser[laser] ?? []
-  const machinePower = kws.length ? snapPower(kws, draft.machinePower) : draft.machinePower
+  const machinePower = kws.length
+    ? snapPower(kws, draft.machinePower, size.sheetModel)
+    : draft.machinePower
 
   return { ...draft, laserSource: laser, bevelHead: bevel, machinePower }
 }
