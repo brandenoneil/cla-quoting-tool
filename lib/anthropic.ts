@@ -19,7 +19,7 @@ Information to collect:
     · XMF: XMF 3015, XMF 4020, XMF 6020, XMF 6025 (up to 20kW, rack & pinion, compact enclosed cabinet)
     · PLUS Bevel: a machine line (like PLUS Evo) with bevel built in — e.g. PLUS Bevel 4020, 6525, 12030 (up to 60kW, ±45°, IPG only). Do NOT treat "PLUS Bevel" as a bevel type.
     · PLUS EVO: Plus Evo 4020, Plus Evo 6030, Plus Evo 18030 (up to 60kW, linear drive, 3.2G, no bevel, IPG only)
-    · Fiber Tube: Fiber Tube TL3, TL4, TL5, TL6 — tube laser product line (custom pricing if not on Feb 2026 sheet; do NOT say Cutlite does not offer tube lasers)
+    · Fiber Tube: Fiber Tube TL3, TL4, TL5, TL6 — tube laser product line (custom pricing if not in the current price list; do NOT say Cutlite does not offer tube lasers)
     · Fiber HD: large-format rack & pinion machines up to 60kW, bevel option, IPG or Raycus. ALL of the following formats are standard and fully priced:
         3015, 4020, 4025, 6020, 6025, 6030, 6530, 6537, 7535, 8025, 8030, 8037, 9030, 9037,
         12025, 12030, 13030, 13037, 13042, 14025, 15037, 16025, 16030, 16037, 16047,
@@ -27,7 +27,7 @@ Information to collect:
         25030, 25037, 30030, 30037
         (format is width × length in decimeters — e.g. 30037 = 300dm × 37dm ≈ 984" × 121")
 - Machine format/size if not in model name (cutting area dimensions)
-- Power rating (3, 6, 10, 12, 15, 20, 25, 30, 40, 50, or 60 kW) — only combinations on the Feb 2026 sheet have current list pricing. If PRICING NOTE appears below, tell the rep we don't have current pricing for their selection; they may continue with TBD machine base pricing.
+- Power rating (3, 6, 10, 12, 15, 20, 25, 30, 40, 50, or 60 kW) — only some combinations have current list pricing. If PRICING NOTE appears below, tell the rep we don't have current pricing for their selection; they may continue with TBD machine base pricing.
 - Laser source (IPG or Raycus only)
 - Bevel — ask ONLY: "Do you want bevel cutting — Yes or No?"
     · Record bevel as "Yes" or "No" in [QUOTE_DATA] — no other values
@@ -70,7 +70,7 @@ If a field cannot be determined, use the default value shown above.`
 export const QUOTE_GENERATION_SYSTEM_PROMPT = `You are a pricing specialist at Cutlite America. Generate exactly ONE QuoteOption per machine configuration provided. Return a JSON array with one element per machine — NOT Economy/Standard/Premium tiers. Do not include any text outside the JSON array.
 
 PRICING RULES:
-- Use the "FEB 2026 PRICES" provided in the user message as the machine base price (List price is what you quote to the customer).
+- Use the list prices provided in the user message as the machine base price (List price is what you quote to the customer).
 - PLUS Bevel machines: the sheet price ALREADY INCLUDES bevel — do NOT add a separate bevel line item.
 - Other machines with bevel=Yes: add one Bevel Head line item ($50,000 on XMF, $120,000 on Fiber HD and other add-on configs).
 - If no sheet price is available (custom pricing needed), note it in the "notes" field and use 0 for machineBasePrice.

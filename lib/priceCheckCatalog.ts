@@ -93,7 +93,7 @@ function familySortKey(family: string): number {
   return FAMILY_SORT[family] ?? 100 + family.charCodeAt(0)
 }
 
-/** Dealer-facing machine list + sizes derived only from Feb 2026 sheet keys (no prices). */
+/** Dealer-facing machine list + sizes derived from price-list keys (no prices). */
 export function buildPriceCheckCatalog(): PriceCheckMachineOption[] {
   const byFamily = new Map<string, Map<string, string>>()
 

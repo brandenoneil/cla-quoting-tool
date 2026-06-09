@@ -635,7 +635,7 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
               <p className="text-xs text-gray-500">{result.disclaimer}</p>
               {result.mode === 'format' && (
                 <p className="text-xs text-gray-500">
-                  Table-size neighbors follow the Feb 2026 sheet model order (numeric size codes), not table area. A
+                  Table-size neighbors follow the catalog model order (numeric size codes), not table area. A
                   &quot;next&quot; size can cost less — e.g. 25.0 × 3.0 m vs 24.0 × 3.5 m.
                 </p>
               )}

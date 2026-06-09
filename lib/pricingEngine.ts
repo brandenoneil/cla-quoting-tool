@@ -105,7 +105,7 @@ function parseWarranty(warranty: string): { label: string; cost: number } {
 }
 
 // ─── Build line items for a single machine configuration ──────────────────────
-// sheetBasePrice: actual Feb 2026 list price from the price sheet — use this
+// sheetBasePrice: list price from the price list — use this
 //   when available (it already accounts for laser source and power). The rough
 //   BASE_PRICES fallback only runs when no sheet price is found.
 export function buildLineItems(config: QuoteConfig, sheetBasePrice?: number): LineItem[] {

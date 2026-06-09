@@ -67,7 +67,7 @@ export function validateIntakeAgainstSheet(guess: IntakeConfigGuess): SheetValid
   return pricingWarnings.map((w) => ({
     userMessage: w.message,
     aiInstruction:
-      'Acknowledge that we do not have current pricing for this configuration on the Feb 2026 sheet. The rep may continue — machine base pricing will be TBD. Do not block them or call it a standard sheet price.',
+      'Acknowledge that we do not have current pricing for this configuration. The rep may continue — machine base pricing will be TBD. Do not block them or call it a standard list price.',
   }))
 }
 
@@ -102,7 +102,7 @@ export function buildIntakeValidationSystemBlock(
     '━━ PRICING NOTE (MANDATORY — mention in your next reply) ━━',
     `Configuration so far: ${configDesc || 'incomplete'}`,
     ...warnings.map((w) => `• ${w.userMessage}`),
-    'Tell the rep we do not have current pricing for this option on the Feb 2026 sheet and machine base pricing will be TBD. They may continue.',
+    'Tell the rep we do not have current pricing for this option and machine base pricing will be TBD. They may continue.',
     'Bevel follow-up must be Yes or No only — never "None", "Basic Bevel", or "Plus Bevel" as bevel choices.',
   ].join('\n')
 }

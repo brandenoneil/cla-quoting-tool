@@ -101,7 +101,7 @@ export default function OptionCards({ options, selectedLabels, onToggle, onConti
             </div>
 
             <div className="px-4 py-3">
-              <p className="text-xs text-gray-500 mb-0.5">Sheet List Price (Feb 2026)</p>
+              <p className="text-xs text-gray-500 mb-0.5">List price (machine base)</p>
               {sheet ? (
                 <p className="text-lg font-black text-[#0A2E52]">{fmt(sheet.list)}</p>
               ) : (

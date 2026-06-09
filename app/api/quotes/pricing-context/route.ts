@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const kw = parseKw(power)
   const modelKey = normalizeModel(model)
 
-  // 1. Current price from the Feb 2026 sheet
+  // 1. Current list price from the price list
   const sheetPrice = lookupExactPrice(model, laser, kw)
 
   // 2. Historical closed-won averages — search by short model keyword

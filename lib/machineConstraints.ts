@@ -17,7 +17,7 @@ export function canonicalLaserSource(raw: string | undefined | null): LaserSourc
   return 'IPG'
 }
 
-// ─── Which lasers appear on the Feb 2026 sheet for this normalized model ───
+// ─── Which lasers appear in the price list for this normalized model ───
 
 let lasersByNormalizedModel: Map<string, Set<'IPG' | 'Raycus'>> | null = null
 
@@ -82,7 +82,7 @@ function sheetKwByModelLaser(): Map<string, number[]> {
   return kwByModelLaser
 }
 
-/** kW values present on the Feb 2026 sheet for this model + laser (after coercion). */
+/** kW values present in the price list for this model + laser (after coercion). */
 export function getSheetKwListForModelLaser(machineModelRaw: string, laserSourceRaw: string): number[] {
   const norm = normalizeModel(machineModelRaw || '')
   if (!norm.trim()) return []

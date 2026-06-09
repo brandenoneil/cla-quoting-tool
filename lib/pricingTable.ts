@@ -979,7 +979,7 @@ export const PRICE_TABLE: Record<string, { list: number; net: number }> = {
 }
 
 
-/** Exact Feb 2026 sheet row only — use for formal quotes (no nearest-kW fallback). */
+/** Exact price-list row only — use for formal quotes (no nearest-kW fallback). */
 export function lookupExactPrice(
   model: string,
   laserSource: string,

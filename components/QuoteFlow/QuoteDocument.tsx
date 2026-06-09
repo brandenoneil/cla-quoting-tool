@@ -36,7 +36,7 @@ function expiryDate(d: Date | string) {
 }
 
 // ── Machine content helpers ───────────────────────────────────────────────────
-// Cutting areas cross-referenced from official brochures (Feb 2026)
+// Cutting areas cross-referenced from official brochures
 const CUTTING_AREAS: Record<string, string> = {
   // FAST / XME / XMF shared sizes
   '3015': "10' × 5'",

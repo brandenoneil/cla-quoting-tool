@@ -169,7 +169,7 @@ function PricePreview({ model, power, laser }: { model: string; power: string; l
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
         <div>
-          <p className="text-sm font-semibold text-amber-800">No current pricing on the Feb 2026 sheet</p>
+          <p className="text-sm font-semibold text-amber-800">No current pricing for this configuration</p>
           <p className="text-xs text-amber-700 mt-0.5">We don&apos;t have current pricing for this configuration. Machine base pricing will be TBD.</p>
         </div>
       </div>
@@ -177,7 +177,7 @@ function PricePreview({ model, power, laser }: { model: string; power: string; l
   }
   return (
     <div className="mt-3 px-4 py-2.5 bg-[#E6F1FB] rounded-lg border border-blue-200">
-      <p className="text-xs text-gray-500">Feb 2026 list price (machine base)</p>
+      <p className="text-xs text-gray-500">List price (machine base)</p>
       <p className="text-base font-bold text-[#0A2E52]">{fmt(price.list)}</p>
     </div>
   )

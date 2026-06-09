@@ -2,8 +2,6 @@ import { hasExactSheetRow } from '@/lib/priceCheckNeighbors'
 import { getAllowedLaserSources, getAllowedPowerLabels } from '@/lib/machineConstraints'
 import { normalizeModel, parseKw, PRICE_TABLE } from '@/lib/pricingTable'
 
-const SHEET_LABEL = 'Feb 2026 price sheet'
-
 export function isModelOnSheet(modelRaw: string): boolean {
   const norm = normalizeModel(modelRaw || '')
   if (!norm.trim()) return false
@@ -32,13 +30,13 @@ export function noPricingMessage(modelRaw: string, powerRaw: string, laserRaw: s
   const laser = laserRaw.trim() || 'this laser'
 
   if (!isModelOnSheet(model)) {
-    return `We don't have current pricing for ${model} on the ${SHEET_LABEL}. You can continue — machine base pricing will be TBD.`
+    return `We don't have current pricing for ${model}. You can continue — machine base pricing will be TBD.`
   }
 
   const rated = ratedPowerSummary(model, laser)
-  const ratedNote = rated ? ` Rated options on the sheet for ${laser}: ${rated}.` : ''
+  const ratedNote = rated ? ` Rated options for ${laser}: ${rated}.` : ''
 
-  return `We don't have current pricing for ${model} at ${power} with ${laser} on the ${SHEET_LABEL}. You can continue — machine base pricing will be TBD.${ratedNote}`
+  return `We don't have current pricing for ${model} at ${power} with ${laser}. You can continue — machine base pricing will be TBD.${ratedNote}`
 }
 
 export interface PricingWarning {
