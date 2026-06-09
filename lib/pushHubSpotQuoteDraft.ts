@@ -89,8 +89,20 @@ export async function pushQuoteDraftToHubSpot(
   await delay(100)
 
   const billableItems = lineItems.filter((item) => item.amount > 0 || item.unitPrice > 0)
+  const itemsToPush =
+    billableItems.length > 0
+      ? billableItems
+      : [
+          {
+            description: `${quote.machineModel} ${quote.machinePower} — pricing TBD`,
+            detail: 'Custom machine configuration — Cutlite America will confirm base pricing.',
+            qty: 1,
+            unitPrice: 1,
+            amount: 1,
+          },
+        ]
 
-  for (const item of billableItems) {
+  for (const item of itemsToPush) {
     const lineItem = await createLineItem({
       name: item.description,
       quantity: item.qty,

@@ -333,28 +333,68 @@ function isInvalidOwnerAssignmentError(message: string): boolean {
   return message.includes('hubspot_owner_id') || message.includes('INVALID_INTEGER')
 }
 
-/** Create a deal; if HubSpot rejects hubspot_owner_id, retry without owner assignment. */
-export async function createDealResilient(
-  properties: Record<string, string | number>
-): Promise<{ deal: Awaited<ReturnType<typeof createDeal>>; ownerAssignmentSkipped: boolean }> {
-  const ownerId = properties.hubspot_owner_id
-  if (ownerId == null || ownerId === '') {
-    return { deal: await createDeal(properties), ownerAssignmentSkipped: false }
-  }
+function isPropertyValidationError(message: string): boolean {
+  return (
+    message.includes('Property values were not valid') ||
+    message.includes('VALIDATION_ERROR') ||
+    isInvalidOwnerAssignmentError(message)
+  )
+}
 
-  try {
-    return { deal: await createDeal(properties), ownerAssignmentSkipped: false }
-  } catch (err: any) {
-    const message = err?.message ?? ''
-    if (!isInvalidOwnerAssignmentError(message)) throw err
-
-    const { hubspot_owner_id: _removed, ...withoutOwner } = properties
-    console.warn('[hubspot] createDeal: skipping invalid hubspot_owner_id', ownerId)
-    return {
-      deal: await createDeal(withoutOwner),
-      ownerAssignmentSkipped: true,
+function extractInvalidPropertyName(message: string): string | null {
+  const jsonStart = message.indexOf('{"status"')
+  if (jsonStart >= 0) {
+    try {
+      const parsed = JSON.parse(message.slice(jsonStart))
+      const fromContext = parsed?.errors?.[0]?.context?.propertyName?.[0]
+      const fromName = parsed?.errors?.[0]?.name
+      if (typeof fromContext === 'string') return fromContext
+      if (typeof fromName === 'string') return fromName
+    } catch {
+      /* fall through */
     }
   }
+  if (message.includes('hubspot_owner_id')) return 'hubspot_owner_id'
+  if (message.includes('dealer_company')) return 'dealer_company'
+  return null
+}
+
+/** Create a deal; strip invalid optional properties until HubSpot accepts the payload. */
+export async function createDealResilient(
+  properties: Record<string, string | number>
+): Promise<{
+  deal: Awaited<ReturnType<typeof createDeal>>
+  ownerAssignmentSkipped: boolean
+  skippedProperties: string[]
+}> {
+  const required = new Set(['dealname', 'pipeline', 'dealstage'])
+  let current = { ...properties }
+  let ownerAssignmentSkipped = false
+  const skippedProperties: string[] = []
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      return {
+        deal: await createDeal(current),
+        ownerAssignmentSkipped,
+        skippedProperties,
+      }
+    } catch (err: any) {
+      const message = err?.message ?? ''
+      if (!isPropertyValidationError(message)) throw err
+
+      const badProp = extractInvalidPropertyName(message)
+      if (!badProp || !(badProp in current) || required.has(badProp)) throw err
+
+      if (badProp === 'hubspot_owner_id') ownerAssignmentSkipped = true
+      skippedProperties.push(badProp)
+      const { [badProp]: _removed, ...rest } = current
+      current = rest
+      console.warn('[hubspot] createDeal: removing invalid property', badProp)
+    }
+  }
+
+  throw new Error('Failed to create HubSpot deal after removing invalid properties')
 }
 
 // ─── CONTACTS ─────────────────────────────────────────────────────────────────

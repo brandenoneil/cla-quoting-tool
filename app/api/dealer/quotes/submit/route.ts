@@ -1,8 +1,9 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createDealResilient, fetchQuoteTemplates } from '@/lib/hubspot'
-import { DEALER_PIPELINE_ID, getPrimarySalesOwnerId } from '@/lib/hubspotConfig'
+import { createDealerHubSpotDeal } from '@/lib/dealerHubSpotDeal'
+import { fetchQuoteTemplates } from '@/lib/hubspot'
+import { getPrimarySalesOwnerId } from '@/lib/hubspotConfig'
 import { notifySalesTeamOfDealerQuote } from '@/lib/notifySalesTeam'
 import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
 import { pushQuoteDraftToHubSpot, resolveTemplateId } from '@/lib/pushHubSpotQuoteDraft'
@@ -10,8 +11,6 @@ import { NextRequest } from 'next/server'
 import type { QuoteOption } from '@/types'
 
 export const maxDuration = 60
-
-const OPPORTUNITY_QUALIFIED_STAGE = '168290363'
 
 function generateQuoteNumber(): string {
   const year = new Date().getFullYear()
@@ -86,22 +85,22 @@ export async function POST(req: NextRequest) {
     const primaryOption = options[0]
     const dealName = `${formData.company} - ${primaryOption.machineModel}`
     const primaryOwnerId = getPrimarySalesOwnerId()
+    const avgAmount = Math.round(
+      options.reduce((s, o) => s + o.totalPrice, 0) / options.length
+    )
 
-    let ownerAssignmentSkipped = false
-    let hsDeal: { id: string }
+    let hubspotSetup: Awaited<ReturnType<typeof createDealerHubSpotDeal>>
     try {
-      const created = await createDealResilient({
-        dealname: dealName,
-        pipeline: DEALER_PIPELINE_ID,
-        dealstage: OPPORTUNITY_QUALIFIED_STAGE,
-        amount: String(
-          Math.round(options.reduce((s, o) => s + o.totalPrice, 0) / options.length)
-        ),
-        ...(primaryOwnerId ? { hubspot_owner_id: primaryOwnerId } : {}),
-        ...(dealerCompany ? { dealer_company: dealerCompany } : {}),
+      hubspotSetup = await createDealerHubSpotDeal({
+        dealName,
+        amount: avgAmount,
+        dealerCompany,
+        primaryOwnerId,
+        customerCompany: formData.company,
+        contactName: formData.contactName,
+        contactEmail: formData.contactEmail,
+        contactPhone: formData.contactPhone,
       })
-      hsDeal = created.deal
-      ownerAssignmentSkipped = created.ownerAssignmentSkipped
     } catch (err: any) {
       return Response.json(
         {
@@ -113,16 +112,28 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const dealId = hsDeal.id
+    const dealId = hubspotSetup.dealId
     const hubspotDraftErrors: string[] = []
     const hubspotInternalWarnings: string[] = []
 
-    if (ownerAssignmentSkipped) {
+    if (hubspotSetup.ownerAssignmentSkipped) {
       hubspotInternalWarnings.push(
         'Deal created without an assigned owner — set SALES_ALERT_HUBSPOT_OWNER_IDS to valid HubSpot owner IDs from Settings → Users & Teams.'
       )
-      console.warn('[dealer/quotes/submit]', hubspotInternalWarnings[0])
     }
+    for (const prop of hubspotSetup.skippedProperties) {
+      if (prop !== 'hubspot_owner_id') {
+        hubspotInternalWarnings.push(`HubSpot rejected deal property "${prop}" — deal created without it.`)
+      }
+    }
+    hubspotDraftErrors.push(...hubspotSetup.associationWarnings)
+
+    console.info('[dealer/quotes/submit] HubSpot deal created', {
+      dealId,
+      dealUrl: hubspotSetup.dealUrl,
+      ownerAssignmentSkipped: hubspotSetup.ownerAssignmentSkipped,
+      skippedProperties: hubspotSetup.skippedProperties,
+    })
 
     await new Promise((r) => setTimeout(r, 150))
 
@@ -205,6 +216,7 @@ export async function POST(req: NextRequest) {
       quotes: await prisma.quote.findMany({ where: { id: { in: quotes.map((q) => q.id) } } }),
       dealId,
       dealName,
+      hubspotDealUrl: hubspotSetup.dealUrl,
       hubspotDraftsCreated: pushedDrafts.length,
       hubspotDraftErrors,
       templatesApplied: pushedDrafts.filter((p) => p.templateId).length,
