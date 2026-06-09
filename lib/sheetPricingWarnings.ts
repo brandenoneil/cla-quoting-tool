@@ -2,6 +2,21 @@ import { hasExactSheetRow } from '@/lib/priceCheckNeighbors'
 import { getAllowedLaserSources, getAllowedPowerLabels } from '@/lib/machineConstraints'
 import { normalizeModel, parseKw, PRICE_TABLE } from '@/lib/pricingTable'
 
+export const DEALER_CUSTOM_PRICING_MESSAGE =
+  'No current pricing for this configuration. The CLA team will fill in pricing on a customized quote.'
+
+export function isCustomPricingOption(option: {
+  machineModel: string
+  machinePower: string
+  laserSource: string
+  machineBasePrice?: number
+  notes?: string
+}): boolean {
+  if (option.notes?.toLowerCase().includes('custom pricing')) return true
+  if (option.machineBasePrice === 0) return true
+  return !hasCurrentSheetPricing(option.machineModel, option.laserSource, option.machinePower)
+}
+
 export function isModelOnSheet(modelRaw: string): boolean {
   const norm = normalizeModel(modelRaw || '')
   if (!norm.trim()) return false

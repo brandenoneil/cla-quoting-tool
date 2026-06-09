@@ -115,11 +115,13 @@ export async function POST(req: NextRequest) {
 
     const dealId = hsDeal.id
     const hubspotDraftErrors: string[] = []
+    const hubspotInternalWarnings: string[] = []
 
     if (ownerAssignmentSkipped) {
-      hubspotDraftErrors.push(
+      hubspotInternalWarnings.push(
         'Deal created without an assigned owner — set SALES_ALERT_HUBSPOT_OWNER_IDS to valid HubSpot owner IDs from Settings → Users & Teams.'
       )
+      console.warn('[dealer/quotes/submit]', hubspotInternalWarnings[0])
     }
 
     await new Promise((r) => setTimeout(r, 150))
@@ -193,7 +195,7 @@ export async function POST(req: NextRequest) {
         contactName: formData.contactName,
         contactEmail: formData.contactEmail,
         options: alertOptions,
-        hubspotDraftErrors,
+        hubspotDraftErrors: [...hubspotDraftErrors, ...hubspotInternalWarnings],
       })
     } catch {
       /* non-fatal */

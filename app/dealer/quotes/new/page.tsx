@@ -16,6 +16,10 @@ import IntakeUpload from '@/components/QuoteFlow/IntakeUpload'
 import IntakeVoice from '@/components/QuoteFlow/IntakeVoice'
 import ReviewForm from '@/components/QuoteFlow/ReviewForm'
 import OptionCards, { type PricingContext } from '@/components/QuoteFlow/OptionCards'
+import {
+  DEALER_CUSTOM_PRICING_MESSAGE,
+  isCustomPricingOption,
+} from '@/lib/sheetPricingWarnings'
 import type { QuoteFormData, QuoteOption } from '@/types'
 
 type Step = 1 | 2 | 3 | 4 | 5
@@ -31,8 +35,11 @@ interface SubmittedQuote {
   quoteNumber: string
   machineLabel: string
   machineModel: string
+  machinePower: string
+  laserSource: string
   name: string
   totalPrice: number
+  customPricing: boolean
 }
 
 export default function DealerNewQuotePage() {
@@ -153,18 +160,34 @@ export default function DealerNewQuotePage() {
       }>(res)
       if (json.error) throw new Error(json.error)
 
-      setSubmittedQuotes((json.quotes as any[]).map(q => ({
-        id: q.id,
-        quoteNumber: q.quoteNumber,
-        machineLabel: q.tier,
-        machineModel: q.machineModel,
-        name: q.packageName,
-        totalPrice: q.totalAmount,
-      })))
+      setSubmittedQuotes((json.quotes as any[]).map((q) => {
+        const option = selectedOptions.find((o) => o.machineLabel === q.tier)
+        const machinePower = String(q.machinePower ?? option?.machinePower ?? '')
+        const laserSource = String(q.laserSource ?? option?.laserSource ?? '')
+        const customPricing = option
+          ? isCustomPricingOption(option)
+          : isCustomPricingOption({
+              machineModel: String(q.machineModel ?? ''),
+              machinePower,
+              laserSource,
+            })
+
+        return {
+          id: q.id,
+          quoteNumber: q.quoteNumber,
+          machineLabel: q.tier,
+          machineModel: q.machineModel,
+          machinePower,
+          laserSource,
+          name: q.packageName,
+          totalPrice: q.totalAmount,
+          customPricing,
+        }
+      }))
       const draftErrors: string[] = json.hubspotDraftErrors ?? []
       if (draftErrors.length > 0) {
         setSubmitWarning(
-          `Some quote drafts could not be pushed to HubSpot automatically: ${draftErrors.join(' · ')}`
+          `Some quote details could not be synced to HubSpot automatically. Our team has your request and will follow up. (${draftErrors.length} item${draftErrors.length === 1 ? '' : 's'})`
         )
       }
       setStep(5)
@@ -368,9 +391,18 @@ export default function DealerNewQuotePage() {
                       </div>
                       <p className="text-xs text-gray-500">{q.machineModel} · {q.quoteNumber}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-black text-[#0A2E52] text-base leading-tight">{priceRange(q.totalPrice)}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">Estimated range</p>
+                    <div className="text-right max-w-[140px]">
+                      {q.customPricing ? (
+                        <>
+                          <p className="text-sm font-semibold text-amber-800 leading-snug">Custom pricing</p>
+                          <p className="text-[10px] text-gray-500 mt-1 leading-snug">{DEALER_CUSTOM_PRICING_MESSAGE}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-black text-[#0A2E52] text-base leading-tight">{priceRange(q.totalPrice)}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Estimated range</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}

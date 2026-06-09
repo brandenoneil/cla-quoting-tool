@@ -1,6 +1,7 @@
 'use client'
 
 import DealerBrandHeader from '@/components/DealerBrandHeader'
+import { DEALER_CUSTOM_PRICING_MESSAGE, isCustomPricingOption } from '@/lib/sheetPricingWarnings'
 import type { Quote } from '@prisma/client'
 
 interface Props {
@@ -182,11 +183,24 @@ export default function DealerDashboard({ requests, user }: Props) {
                       </p>
                     </div>
 
-                    {/* Estimated price range */}
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-xs text-gray-400 mb-0.5">Estimated Range</p>
-                      <p className="font-black text-[#0A2E52] text-base leading-tight">{priceRange(r.totalAmount)}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">~{r.deliveryWeeks} wk delivery</p>
+                    {/* Price summary */}
+                    <div className="text-right flex-shrink-0 max-w-[140px]">
+                      {isCustomPricingOption({
+                        machineModel: r.machineModel,
+                        machinePower: r.machinePower,
+                        laserSource: r.laserSource,
+                      }) ? (
+                        <>
+                          <p className="text-sm font-semibold text-amber-800 leading-snug">Custom pricing</p>
+                          <p className="text-[10px] text-gray-500 mt-1 leading-snug">{DEALER_CUSTOM_PRICING_MESSAGE}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-gray-400 mb-0.5">Estimated Range</p>
+                          <p className="font-black text-[#0A2E52] text-base leading-tight">{priceRange(r.totalAmount)}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">~{r.deliveryWeeks} wk delivery</p>
+                        </>
+                      )}
                     </div>
                   </div>
 
