@@ -329,6 +329,34 @@ export async function createDeal(properties: Record<string, string | number>) {
   return res.json()
 }
 
+function isInvalidOwnerAssignmentError(message: string): boolean {
+  return message.includes('hubspot_owner_id') || message.includes('INVALID_INTEGER')
+}
+
+/** Create a deal; if HubSpot rejects hubspot_owner_id, retry without owner assignment. */
+export async function createDealResilient(
+  properties: Record<string, string | number>
+): Promise<{ deal: Awaited<ReturnType<typeof createDeal>>; ownerAssignmentSkipped: boolean }> {
+  const ownerId = properties.hubspot_owner_id
+  if (ownerId == null || ownerId === '') {
+    return { deal: await createDeal(properties), ownerAssignmentSkipped: false }
+  }
+
+  try {
+    return { deal: await createDeal(properties), ownerAssignmentSkipped: false }
+  } catch (err: any) {
+    const message = err?.message ?? ''
+    if (!isInvalidOwnerAssignmentError(message)) throw err
+
+    const { hubspot_owner_id: _removed, ...withoutOwner } = properties
+    console.warn('[hubspot] createDeal: skipping invalid hubspot_owner_id', ownerId)
+    return {
+      deal: await createDeal(withoutOwner),
+      ownerAssignmentSkipped: true,
+    }
+  }
+}
+
 // ─── CONTACTS ─────────────────────────────────────────────────────────────────
 
 export async function getContact(contactId: string) {

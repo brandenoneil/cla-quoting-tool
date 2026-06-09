@@ -3,12 +3,12 @@ export const HUBSPOT_PORTAL_ID = '45270912'
 
 export const DEALER_PIPELINE_ID = '90932330'
 
-/** Jess Moon, John Quinn — primary deal owner is first ID. */
-export const DEFAULT_SALES_OWNER_IDS = ['96593046862', '158817869370'] as const
+/** Jess Moon / John Quinn — verify via GET /crm/v3/owners in your portal before setting env. */
+export const DOCUMENTED_SALES_OWNER_IDS = ['96593046862', '158817869370'] as const
 
 export function getSalesAlertOwnerIds(): string[] {
   const raw = process.env.SALES_ALERT_HUBSPOT_OWNER_IDS?.trim()
-  if (!raw) return [...DEFAULT_SALES_OWNER_IDS]
+  if (!raw) return []
   return raw.split(',').map((s) => s.trim()).filter(Boolean)
 }
 

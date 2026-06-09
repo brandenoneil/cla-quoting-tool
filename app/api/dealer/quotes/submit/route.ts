@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createDeal, fetchQuoteTemplates } from '@/lib/hubspot'
+import { createDealResilient, fetchQuoteTemplates } from '@/lib/hubspot'
 import { DEALER_PIPELINE_ID, getPrimarySalesOwnerId } from '@/lib/hubspotConfig'
 import { notifySalesTeamOfDealerQuote } from '@/lib/notifySalesTeam'
 import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
@@ -87,9 +87,10 @@ export async function POST(req: NextRequest) {
     const dealName = `${formData.company} - ${primaryOption.machineModel}`
     const primaryOwnerId = getPrimarySalesOwnerId()
 
+    let ownerAssignmentSkipped = false
     let hsDeal: { id: string }
     try {
-      hsDeal = await createDeal({
+      const created = await createDealResilient({
         dealname: dealName,
         pipeline: DEALER_PIPELINE_ID,
         dealstage: OPPORTUNITY_QUALIFIED_STAGE,
@@ -99,6 +100,8 @@ export async function POST(req: NextRequest) {
         ...(primaryOwnerId ? { hubspot_owner_id: primaryOwnerId } : {}),
         ...(dealerCompany ? { dealer_company: dealerCompany } : {}),
       })
+      hsDeal = created.deal
+      ownerAssignmentSkipped = created.ownerAssignmentSkipped
     } catch (err: any) {
       return Response.json(
         {
@@ -111,6 +114,13 @@ export async function POST(req: NextRequest) {
     }
 
     const dealId = hsDeal.id
+    const hubspotDraftErrors: string[] = []
+
+    if (ownerAssignmentSkipped) {
+      hubspotDraftErrors.push(
+        'Deal created without an assigned owner — set SALES_ALERT_HUBSPOT_OWNER_IDS to valid HubSpot owner IDs from Settings → Users & Teams.'
+      )
+    }
 
     await new Promise((r) => setTimeout(r, 150))
 
@@ -118,7 +128,6 @@ export async function POST(req: NextRequest) {
       options.map((opt) => saveOneOption(opt, formData, dealId, dealName, dealerEmail, dealerCompany))
     )
 
-    const hubspotDraftErrors: string[] = []
     const pushedDrafts: Array<{
       quoteId: string
       quoteNumber: string
