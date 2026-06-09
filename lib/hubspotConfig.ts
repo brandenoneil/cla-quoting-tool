@@ -3,18 +3,11 @@ export const HUBSPOT_PORTAL_ID = '45270912'
 
 export const DEALER_PIPELINE_ID = '90932330'
 
-/** Jess Moon / John Quinn — verify via GET /crm/v3/owners in your portal before setting env. */
-export const DOCUMENTED_SALES_OWNER_IDS = ['96593046862', '158817869370'] as const
+/** Jess Moon — primary deal owner for all quoting-tool deals. */
+export const JESS_MOON_DEAL_OWNER_ID = '77000806'
 
-export function getSalesAlertOwnerIds(): string[] {
-  const raw = process.env.SALES_ALERT_HUBSPOT_OWNER_IDS?.trim()
-  if (!raw) return []
-  return raw.split(',').map((s) => s.trim()).filter(Boolean)
-}
-
-export function getPrimarySalesOwnerId(): string | undefined {
-  return getSalesAlertOwnerIds()[0]
-}
+/** John Quinn — receives HubSpot tasks on dealer quote alerts (not deal co-owner). */
+export const JOHN_QUINN_DEAL_OWNER_ID = '83328389'
 
 export function hubspotDealUrl(dealId: string): string {
   return `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/record/0-3/${dealId}`

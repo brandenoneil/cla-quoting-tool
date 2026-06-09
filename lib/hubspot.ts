@@ -1,4 +1,8 @@
 import type { HubSpotDeal } from '@/types'
+import {
+  JESS_MOON_DEAL_OWNER_ID,
+  JOHN_QUINN_DEAL_OWNER_ID,
+} from '@/lib/hubspotConfig'
 
 const BASE_URL = 'https://api.hubapi.com'
 
@@ -395,6 +399,47 @@ export async function createDealResilient(
   }
 
   throw new Error('Failed to create HubSpot deal after removing invalid properties')
+}
+
+// ─── OWNERS ───────────────────────────────────────────────────────────────────
+
+let cachedJessOwnerId: string | undefined
+let cachedJohnOwnerId: string | undefined
+
+/** Jess Moon is always the Cutlite deal owner. */
+export async function getJessMoonDealOwnerId(): Promise<string> {
+  if (cachedJessOwnerId !== undefined) return cachedJessOwnerId
+
+  const explicit = process.env.HUBSPOT_JESS_OWNER_ID?.trim()
+  cachedJessOwnerId = explicit || JESS_MOON_DEAL_OWNER_ID
+  return cachedJessOwnerId
+}
+
+export async function getJohnQuinnOwnerId(): Promise<string> {
+  if (cachedJohnOwnerId !== undefined) return cachedJohnOwnerId
+
+  const explicit = process.env.HUBSPOT_JOHN_OWNER_ID?.trim()
+  cachedJohnOwnerId = explicit || JOHN_QUINN_DEAL_OWNER_ID
+  return cachedJohnOwnerId
+}
+
+/** Owner IDs for HubSpot tasks — Jess and John both receive tasks on dealer alerts. */
+export async function getSalesTaskOwnerIds(): Promise<string[]> {
+  const jess = await getJessMoonDealOwnerId()
+  const john = await getJohnQuinnOwnerId()
+  return john !== jess ? [jess, john] : [jess]
+}
+
+/** Assign Jess Moon as deal owner. Called on every deal create/update from the quoting tool. */
+export async function assignJessMoonAsDealOwner(dealId: string): Promise<boolean> {
+  const ownerId = await getJessMoonDealOwnerId()
+  try {
+    await updateDeal(dealId, { hubspot_owner_id: ownerId })
+    return true
+  } catch (err: any) {
+    console.error('[hubspot] assignJessMoonAsDealOwner failed', dealId, err?.message ?? err)
+    return false
+  }
 }
 
 // ─── CONTACTS ─────────────────────────────────────────────────────────────────

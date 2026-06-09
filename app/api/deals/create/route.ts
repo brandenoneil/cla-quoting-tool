@@ -5,7 +5,8 @@ import {
   createCompany,
   searchContactByEmail,
   createContact,
-  createDeal,
+  createDealResilient,
+  assignJessMoonAsDealOwner,
   associateV3,
 } from '@/lib/hubspot'
 import { NextRequest } from 'next/server'
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Create deal
     const dealName = `${companyName} - ${machineInterest || 'Laser System'}`
-    const deal = await createDeal({
+    const { deal } = await createDealResilient({
       dealname: dealName,
       pipeline: '90932330',
       dealstage: '168290363',
@@ -54,6 +55,8 @@ export async function POST(req: NextRequest) {
         ? new Date(closeDate).getTime()
         : new Date(Date.now() + 90 * 86400000).getTime(),
     })
+
+    await assignJessMoonAsDealOwner(deal.id)
 
     await new Promise((r) => setTimeout(r, 100))
 

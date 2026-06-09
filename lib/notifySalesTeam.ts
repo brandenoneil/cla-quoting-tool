@@ -1,13 +1,14 @@
 import {
+  assignJessMoonAsDealOwner,
   associateObjects,
   associateV3,
   createNote,
   createTask,
+  getSalesTaskOwnerIds,
   updateDeal,
 } from '@/lib/hubspot'
 import { isPendingHubSpotDealId } from '@/lib/dealerHubSpotDeal'
 import {
-  getSalesAlertOwnerIds,
   hubspotDealUrl,
   hubspotQuoteUrl,
 } from '@/lib/hubspotConfig'
@@ -70,8 +71,7 @@ export interface DealerQuoteAlertPayload {
 
 /** Notify inside sales of a new dealer quote request. HubSpot deal is created on approval, not submit. */
 export async function notifySalesTeamOfDealerQuote(payload: DealerQuoteAlertPayload): Promise<void> {
-  const ownerIds = getSalesAlertOwnerIds()
-  const primaryOwnerId = ownerIds[0]
+  const ownerIds = await getSalesTaskOwnerIds()
   const hasHubSpotDeal = payload.dealId != null && !isPendingHubSpotDealId(payload.dealId)
   const dealUrl = hasHubSpotDeal ? hubspotDealUrl(payload.dealId!) : null
   const reviewLink = payload.quoteReviewUrl ?? 'CLA Quoting Tool → Pending Review queue'
@@ -162,8 +162,8 @@ export async function notifySalesTeamOfDealerQuote(payload: DealerQuoteAlertPayl
         [QUOTE_TOOL_STATUS_PROPERTY]: 'ready_for_review',
         [QUOTE_TOOL_MACHINE_SUMMARY_PROPERTY]: machineSummary.slice(0, 500),
       }
-      if (primaryOwnerId) dealProps.hubspot_owner_id = primaryOwnerId
       await updateDeal(payload.dealId, dealProps)
+      await assignJessMoonAsDealOwner(payload.dealId)
     } catch {
       /* workflow trigger may need custom properties created in HubSpot admin */
     }

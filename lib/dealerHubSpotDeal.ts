@@ -1,10 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import {
+  assignJessMoonAsDealOwner,
   associateV3,
   createCompany,
   createContact,
   createDealResilient,
   getDeal,
+  getJessMoonDealOwnerId,
   hubspotConfigured,
   searchCompanyByName,
   searchContactByEmail,
@@ -32,7 +34,6 @@ export interface DealerHubSpotDealInput {
   dealName: string
   amount: number
   dealerCompany?: string
-  primaryOwnerId?: string
   customerCompany: string
   contactName: string
   contactEmail: string
@@ -50,7 +51,7 @@ export interface DealerHubSpotDealResult {
   associationWarnings: string[]
 }
 
-/** Create a dealer deal in HubSpot with company + contact associations. */
+/** Create a dealer deal in HubSpot with company + contact associations. Jess Moon is always deal owner. */
 export async function createDealerHubSpotDeal(
   input: DealerHubSpotDealInput
 ): Promise<DealerHubSpotDealResult> {
@@ -60,6 +61,8 @@ export async function createDealerHubSpotDeal(
     )
   }
 
+  const jessOwnerId = await getJessMoonDealOwnerId()
+
   const dealProperties: Record<string, string | number> = {
     dealname: input.dealName,
     pipeline: DEALER_PIPELINE_ID,
@@ -67,12 +70,17 @@ export async function createDealerHubSpotDeal(
     amount: String(Math.round(input.amount)),
     closedate: new Date(Date.now() + 90 * 86400000).getTime(),
   }
-  if (input.primaryOwnerId) dealProperties.hubspot_owner_id = input.primaryOwnerId
+  if (jessOwnerId) dealProperties.hubspot_owner_id = jessOwnerId
   if (input.dealerCompany) dealProperties.dealer_company = input.dealerCompany
 
   const { deal, ownerAssignmentSkipped, skippedProperties } =
     await createDealResilient(dealProperties)
   const dealId = deal.id
+
+  let ownerAssigned = Boolean(jessOwnerId) && !ownerAssignmentSkipped
+  if (!ownerAssigned) {
+    ownerAssigned = await assignJessMoonAsDealOwner(dealId)
+  }
 
   await delay(100)
 
@@ -124,7 +132,7 @@ export async function createDealerHubSpotDeal(
     dealId,
     dealName: input.dealName,
     dealUrl: hubspotDealUrl(dealId),
-    ownerAssignmentSkipped,
+    ownerAssignmentSkipped: !ownerAssigned,
     skippedProperties,
     associationWarnings,
   }
@@ -147,6 +155,7 @@ export async function ensureHubSpotDealForDealerQuote(
   quote: DealerQuoteForHubSpot
 ): Promise<string> {
   if (!isPendingHubSpotDealId(quote.hubspotDealId)) {
+    await assignJessMoonAsDealOwner(quote.hubspotDealId)
     return quote.hubspotDealId
   }
 
@@ -154,7 +163,6 @@ export async function ensureHubSpotDealForDealerQuote(
     dealName: quote.hubspotDealName,
     amount: quote.totalAmount,
     dealerCompany: quote.dealerCompany ?? undefined,
-    primaryOwnerId: undefined,
     customerCompany: quote.company,
     contactName: quote.contactName,
     contactEmail: quote.contactEmail,
