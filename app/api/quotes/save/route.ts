@@ -36,7 +36,7 @@ async function saveOneOption(
       machineModel: option.machineModel || formData.machines?.[0]?.machineModel || '',
       machinePower: option.machinePower || formData.machines?.[0]?.machinePower || '',
       laserSource: option.laserSource || formData.machines?.[0]?.laserSource || '',
-      bevelHead: option.bevelHead || formData.machines?.[0]?.bevelHead || 'None',
+      bevelHead: option.bevelHead || formData.machines?.[0]?.bevelHead || 'No',
       deliveryWeeks: option.deliveryWeeks,
       tier: option.machineLabel || 'Option A',
       packageName: option.name,

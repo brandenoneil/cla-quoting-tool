@@ -1,5 +1,5 @@
 import {
-  getAllowedBevelHeads,
+  getAllowedBevelChoices,
   getAllowedLaserSources,
   getSheetKwListForModelLaser,
   LASER_SOURCE_LABELS,
@@ -27,7 +27,7 @@ export function enrichPriceCheckCatalog(
         ...size,
         allowedLasers,
         kwByLaser,
-        allowedBevels: getAllowedBevelHeads(size.sheetModel),
+        allowedBevels: getAllowedBevelChoices(size.sheetModel),
       }
     }),
   }))

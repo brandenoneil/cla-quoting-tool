@@ -105,9 +105,25 @@ export function coercePowerForModel(
   laserSourceRaw: string
 ): string {
   const allowed = getAllowedPowerLabels(machineModelRaw, laserSourceRaw)
-  if (allowed.length === 0) return currentPower || '6kW'
-  if (allowed.includes(currentPower)) return currentPower
-  const wantKw = parseInt(currentPower.replace(/\D/g, ''), 10) || 6
+  const trimmed = (currentPower || '').trim()
+
+  // Normalize "60 kW" → "60kW"
+  const kwMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*kW$/i)
+  if (kwMatch) {
+    return `${Math.round(parseFloat(kwMatch[1]))}kW`
+  }
+
+  if (!trimmed) {
+    return allowed[0] ?? '6kW'
+  }
+
+  // Keep explicit power even when off-sheet — pricing will be TBD
+  if (allowed.includes(trimmed)) return trimmed
+  if (/\d/.test(trimmed)) return trimmed
+
+  if (allowed.length === 0) return trimmed || '6kW'
+
+  const wantKw = parseInt(trimmed.replace(/\D/g, ''), 10) || 6
   let best = allowed[0]
   let bestDiff = Infinity
   for (const label of allowed) {
@@ -121,21 +137,72 @@ export function coercePowerForModel(
   return best
 }
 
-// ─── Cutting head availability (product-family rules) ───
+// ─── Bevel (Yes/No only — PLUS Bevel is a machine name, not a bevel type) ───
 
-export function getAllowedBevelHeads(machineModelRaw: string): MachineOption['bevelHead'][] {
-  const norm = normalizeModel(machineModelRaw || '')
-  if (!norm.trim()) return ['None', 'Basic Bevel', 'Plus Bevel']
-  if (/^PLUS\s+Evo\b/i.test(norm)) return ['None']
-  if (/^PLUS\s+Bevel\b/i.test(norm)) return ['Plus Bevel']
-  return ['None', 'Basic Bevel', 'Plus Bevel']
+export type BevelChoice = 'Yes' | 'No'
+
+/** Machine family whose base price already includes bevel (PLUS Bevel line). */
+export function isPlusBevelMachineModel(machineModelRaw: string): boolean {
+  return /^PLUS\s+Bevel\b/i.test(normalizeModel(machineModelRaw || ''))
 }
 
-export function coerceBevelHeadForModel(
-  current: MachineOption['bevelHead'],
+export function normalizeBevelChoice(raw: string | undefined | null): BevelChoice {
+  const s = (raw ?? '').trim().toLowerCase()
+  if (s === 'yes' || s === 'true') return 'Yes'
+  if (s === 'no' || s === 'false' || s === 'none' || !s) return 'No'
+  // Legacy stored values and line-item text → Yes
+  if (s.includes('bevel') && !s.includes('no bevel')) return 'Yes'
+  if (s.includes('basic') || s.includes('plus')) return 'Yes'
+  return 'No'
+}
+
+export function coerceBevelForModel(
+  current: string | undefined | null,
   machineModelRaw: string
-): MachineOption['bevelHead'] {
-  const allowed = getAllowedBevelHeads(machineModelRaw)
-  if (allowed.includes(current)) return current
-  return allowed[0]!
+): BevelChoice {
+  const norm = normalizeModel(machineModelRaw || '')
+  let choice = normalizeBevelChoice(current)
+
+  if (isPlusBevelMachineModel(machineModelRaw)) return 'Yes'
+  if (/^PLUS\s+Evo\b/i.test(norm) || /^FIBER\s+Fast\b/i.test(norm) || /^XME\b/i.test(norm)) {
+    return 'No'
+  }
+  return choice
+}
+
+/** @deprecated Use coerceBevelForModel */
+export const coerceBevelHeadForModel = coerceBevelForModel
+
+export function getBevelUiOptions(machineModelRaw: string): {
+  yesDisabled: boolean
+  noDisabled: boolean
+} {
+  if (isPlusBevelMachineModel(machineModelRaw)) {
+    return { yesDisabled: false, noDisabled: true }
+  }
+  const norm = normalizeModel(machineModelRaw || '')
+  if (/^PLUS\s+Evo\b/i.test(norm) || /^FIBER\s+Fast\b/i.test(norm) || /^XME\b/i.test(norm)) {
+    return { yesDisabled: true, noDisabled: false }
+  }
+  return { yesDisabled: false, noDisabled: false }
+}
+
+export function getAllowedBevelChoices(machineModelRaw: string): BevelChoice[] {
+  const { yesDisabled, noDisabled } = getBevelUiOptions(machineModelRaw)
+  const choices: BevelChoice[] = []
+  if (!noDisabled) choices.push('No')
+  if (!yesDisabled) choices.push('Yes')
+  return choices.length > 0 ? choices : ['No']
+}
+
+/** @deprecated Use getAllowedBevelChoices */
+export function getAllowedBevelHeads(machineModelRaw: string): BevelChoice[] {
+  return getAllowedBevelChoices(machineModelRaw)
+}
+
+export function parseBevelFromIntake(
+  raw: string | undefined | null,
+  machineModelRaw: string
+): BevelChoice {
+  return coerceBevelForModel(raw, machineModelRaw)
 }

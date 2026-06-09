@@ -12,6 +12,11 @@ import {
   tableSizeLabelFromSheetModel,
 } from '@/lib/priceCheckClient'
 import type { MachineOption } from '@/types'
+import {
+  coerceBevelForModel,
+  getBevelUiOptions,
+  type BevelChoice,
+} from '@/lib/machineConstraints'
 
 type NeighborMode = 'format' | 'power'
 
@@ -36,7 +41,7 @@ interface ApiResponse {
 }
 
 const LASER_FALLBACK = ['IPG', 'Raycus'] as const
-const BEVEL_FALLBACK: MachineOption['bevelHead'][] = ['None', 'Basic Bevel', 'Plus Bevel']
+const BEVEL_UI_FALLBACK: BevelChoice[] = ['No', 'Yes']
 const POWER_FALLBACK = ['3kW', '6kW', '10kW', '12kW', '15kW', '20kW', '25kW', '30kW', '40kW', '50kW', '60kW']
 
 function parseKwLabel(power: string): number {
@@ -83,9 +88,7 @@ function constrain(
   const laser = size.allowedLasers.includes(draft.laserSource)
     ? draft.laserSource
     : size.allowedLasers[0] ?? 'IPG'
-  const bevel = size.allowedBevels.includes(draft.bevelHead)
-    ? draft.bevelHead
-    : (size.allowedBevels[0] as MachineOption['bevelHead']) ?? 'None'
+  const bevel = coerceBevelForModel(draft.bevelHead, size.sheetModel)
   const kws = size.kwByLaser[laser] ?? []
   const machinePower = kws.length ? snapPower(kws, draft.machinePower) : draft.machinePower
 
@@ -98,7 +101,7 @@ function initialForm(catalog: PriceCheckMachineOptionEnriched[]) {
     familyId: d.familyId,
     sizeCode: d.sizeCode,
     laserSource: 'IPG',
-    bevelHead: 'None',
+    bevelHead: 'No',
     machinePower: '20kW',
   })
 }
@@ -418,9 +421,10 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
   )
 
   const laserChoices = selectedSize?.allowedLasers.length ? selectedSize.allowedLasers : [...LASER_FALLBACK]
-  const bevelChoices = selectedSize?.allowedBevels.length
-    ? selectedSize.allowedBevels
-    : [...BEVEL_FALLBACK]
+  const bevelUiOptions = getBevelUiOptions(selectedSize?.sheetModel ?? machineModel)
+  const bevelUiChoices = BEVEL_UI_FALLBACK.filter(
+    (v) => !(v === 'Yes' ? bevelUiOptions.yesDisabled : bevelUiOptions.noDisabled)
+  )
   const powerChoices = useMemo(() => {
     const kws = selectedSize?.kwByLaser[laserSource] ?? []
     if (kws.length) return kws.map((k) => `${k}kW`)
@@ -494,7 +498,10 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
   const sizes = selectedMachine?.sizes ?? []
   const sizeValue = sizes.some((s) => s.code === sizeCode) ? sizeCode : sizes[0]?.code ?? ''
   const laserValue = laserChoices.includes(laserSource) ? laserSource : laserChoices[0] ?? 'IPG'
-  const bevelValue = bevelChoices.includes(bevelHead) ? bevelHead : bevelChoices[0] ?? 'None'
+  const bevelUiValue = bevelHead
+  const bevelUiSelectValue = bevelUiChoices.includes(bevelUiValue)
+    ? bevelUiValue
+    : bevelUiChoices[0] ?? 'No'
   const powerValue = powerChoices.includes(machinePower) ? machinePower : powerChoices[0] ?? '20kW'
 
   return (
@@ -571,20 +578,20 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
             </label>
 
             <label className="block space-y-1 min-w-0">
-              <span className="text-xs font-medium text-gray-600">Cutting head</span>
+              <span className="text-xs font-medium text-gray-600">Bevel</span>
               <select
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white text-[#0A2E52]"
-                value={bevelValue}
+                value={bevelUiSelectValue}
                 onChange={(e) =>
                   setForm((prev) =>
                     constrain(catalog, {
                       ...prev,
-                      bevelHead: e.target.value as MachineOption['bevelHead'],
+                      bevelHead: e.target.value as BevelChoice,
                     })
                   )
                 }
               >
-                {bevelChoices.map((b) => (
+                {bevelUiChoices.map((b) => (
                   <option key={b} value={b}>
                     {b}
                   </option>

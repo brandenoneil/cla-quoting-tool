@@ -1,17 +1,19 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
 import { hasExactSheetRow } from '@/lib/priceCheckNeighbors'
+import { getReviewPricingWarnings, type PricingWarning } from '@/lib/sheetPricingWarnings'
 import {
   canonicalLaserSource,
-  coerceBevelHeadForModel,
+  coerceBevelForModel,
   coerceLaserSourceForModel,
   coercePowerForModel,
   LASER_SOURCE_LABELS,
-  getAllowedBevelHeads,
+  getBevelUiOptions,
   getAllowedLaserSources,
   getAllowedPowerLabels,
+  parseBevelFromIntake,
 } from '@/lib/machineConstraints'
 import {
   coerceSmartOptionsForModel,
@@ -44,7 +46,7 @@ function blankMachine(label: string, overrides: Partial<MachineOption> = {}): Ma
     machineModel: '',
     machinePower: '6kW',
     laserSource: 'IPG',
-    bevelHead: 'None',
+    bevelHead: 'No',
     smartMix: false,
     smartChanger: false,
     smartGrease: false,
@@ -75,15 +77,13 @@ function autoCheckFromIntake(intakeData: Record<string, any>): Partial<MachineOp
     : 'None'
 
   const model = intakeData.model || ''
-  const rawBevel = (['None', 'Basic Bevel', 'Plus Bevel'].includes(intakeData.bevel)
-    ? intakeData.bevel : 'None') as MachineOption['bevelHead']
 
   return {
     machineModel: model,
     machinePower: intakeData.power || '6kW',
     // Do not force back to sheet defaults here; preserve user/AI laser intent.
     laserSource: canonicalLaserSource(intakeData.laser),
-    bevelHead: coerceBevelHeadForModel(rawBevel, model),
+    bevelHead: coerceBevelForModel(parseBevelFromIntake(intakeData.bevel, model), model),
     smartMix: notes.includes('smart mix') || notes.includes('gas mix'),
     smartChanger: notes.includes('smart changer') || notes.includes('nozzle change'),
     smartGrease: notes.includes('smart grease') || notes.includes('greasing'),
@@ -115,9 +115,9 @@ function PricePreview({ model, power, laser }: { model: string; power: string; l
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
         <div>
-          <p className="text-sm font-semibold text-amber-800">Custom pricing required (TBD)</p>
+          <p className="text-sm font-semibold text-amber-800">No current pricing on the Feb 2026 sheet</p>
           <p className="text-xs text-amber-700 mt-0.5">
-            This exact configuration is not on the Feb 2026 price sheet. You can save a draft with TBD machine pricing.
+            We don&apos;t have current pricing for this configuration. You can continue — machine base pricing will be TBD.
           </p>
         </div>
       </div>
@@ -135,8 +135,65 @@ function PricePreview({ model, power, laser }: { model: string; power: string; l
 function coerceMachineFields(merged: MachineOption): MachineOption {
   merged.laserSource = coerceLaserSourceForModel(merged.laserSource, merged.machineModel)
   merged.machinePower = coercePowerForModel(merged.machinePower, merged.machineModel, merged.laserSource)
-  merged.bevelHead = coerceBevelHeadForModel(merged.bevelHead, merged.machineModel)
+  merged.bevelHead = coerceBevelForModel(merged.bevelHead, merged.machineModel)
   return { ...merged, ...coerceSmartOptionsForModel(merged) }
+}
+
+function buildMachinesFromIntake(
+  intakeData: Record<string, any>,
+  initialData: Partial<QuoteFormData>
+): MachineOption[] {
+  if (initialData.machines?.length) {
+    return initialData.machines.map((m) => coerceMachineFields({ ...m }))
+  }
+
+  const intakeMachines = intakeData.machines as Record<string, unknown>[] | undefined
+  if (Array.isArray(intakeMachines) && intakeMachines.length > 0) {
+    return intakeMachines.slice(0, 3).map((raw, i) =>
+      coerceMachineFields(blankMachine(OPTION_LABELS[i], autoCheckFromIntake(raw)))
+    )
+  }
+
+  return [coerceMachineFields(blankMachine('Option A', autoCheckFromIntake(intakeData)))]
+}
+
+function PricingWarningsBanner({ warnings }: { warnings: PricingWarning[] }) {
+  if (warnings.length === 0) return null
+
+  const uniqueMessages = Array.from(new Set(warnings.map((w) => w.message)))
+
+  return (
+    <div
+      className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 space-y-2"
+      role="alert"
+    >
+      <div className="flex items-start gap-2.5">
+        <svg className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path
+            fillRule="evenodd"
+            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+            clipRule="evenodd"
+          />
+        </svg>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-amber-900">
+            No current pricing for this configuration
+          </p>
+          <p className="text-xs text-amber-800 mt-1">
+            Your selections are accepted. Machine base pricing will be TBD until a list price is confirmed.
+          </p>
+          <ul className="mt-2 space-y-1.5 text-sm text-amber-900">
+            {uniqueMessages.map((message) => (
+              <li key={message} className="flex gap-2">
+                <span className="text-amber-500 flex-shrink-0">•</span>
+                <span>{message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -149,36 +206,15 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
   const [fetchingContact, setFetchingContact] = useState(false)
 
   // ── Machine tabs state ──────────────────────────────────────────────────────
-  const [machines, setMachines] = useState<MachineOption[]>(() => {
-    // Prefer initialData.machines if explicitly passed (e.g. edit flow)
-    if (initialData.machines?.length) return initialData.machines
-    // Multi-machine intake: intakeData.machines is an array from parseQuoteData
-    const intakeMachines = (intakeData as any).machines as Record<string, any>[] | undefined
-    if (Array.isArray(intakeMachines) && intakeMachines.length > 0) {
-      return intakeMachines.slice(0, 3).map((m, i) =>
-        blankMachine(OPTION_LABELS[i], autoCheckFromIntake(m))
-      )
-    }
-    // Single-machine or empty intake
-    return [blankMachine('Option A', autoCheckFromIntake(intakeData))]
-  })
+  const [machines, setMachines] = useState<MachineOption[]>(() =>
+    buildMachinesFromIntake(intakeData, initialData)
+  )
   const [activeTab, setActiveTab] = useState(0)
 
   // Keep machines in sync if intakeData arrives after mount (streaming)
   useEffect(() => {
     if (Object.keys(intakeData).length === 0) return
-    const intakeMachines = (intakeData as any).machines as Record<string, any>[] | undefined
-    if (Array.isArray(intakeMachines) && intakeMachines.length > 0) {
-      setMachines(intakeMachines.slice(0, 3).map((m, i) =>
-        blankMachine(OPTION_LABELS[i], autoCheckFromIntake(m))
-      ))
-    } else {
-      setMachines((prev) => {
-        const updated = [...prev]
-        updated[0] = { ...updated[0], ...autoCheckFromIntake(intakeData) }
-        return updated
-      })
-    }
+    setMachines(buildMachinesFromIntake(intakeData, {}))
   }, [JSON.stringify(intakeData)])
 
   // ── Machine helpers ─────────────────────────────────────────────────────────
@@ -317,11 +353,21 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
   const contactMissing = !contactName && !contactEmail
 
   const allowedLasers = getAllowedLaserSources(m.machineModel)
-  const allowedBevels = getAllowedBevelHeads(m.machineModel)
+  const bevelUiOptions = getBevelUiOptions(m.machineModel)
   const sheetPowers = getAllowedPowerLabels(m.machineModel, m.laserSource)
   const powerOptions = sheetPowers.length > 0 ? sheetPowers : POWER_OPTIONS
+  const powerSelectOptions =
+    m.machinePower && !powerOptions.includes(m.machinePower)
+      ? [...powerOptions, m.machinePower]
+      : powerOptions
   const allowedSmart = getAllowedSmartOptions(m.machineModel)
   const automationAllowed = isAutomationAllowed(m.machineModel)
+
+  const pricingWarnings = useMemo(
+    () => getReviewPricingWarnings(m),
+    [m.machineModel, m.machinePower, m.laserSource]
+  )
+  const powerPricingWarning = pricingWarnings.find((w) => w.field === 'power')
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -445,6 +491,8 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
         {/* ── Active machine tab content ── */}
         <div className="border border-t-0 border-gray-200 rounded-b-xl p-5 space-y-6">
 
+          <PricingWarningsBanner warnings={pricingWarnings} />
+
           {/* ── Document upload for this tab ── */}
           <div
             onDrop={(e) => handleDrop(activeTab, e)}
@@ -512,10 +560,13 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
                 <select
                   value={m.machinePower}
                   onChange={(e) => updateMachine(activeTab, { machinePower: e.target.value })}
-                  className={inputCls}
+                  className={`${inputCls}${powerPricingWarning ? ' border-amber-400 ring-1 ring-amber-200' : ''}`}
                 >
-                  {powerOptions.map((p) => <option key={p}>{p}</option>)}
+                  {powerSelectOptions.map((p) => <option key={p}>{p}</option>)}
                 </select>
+                {powerPricingWarning && (
+                  <p className="text-xs text-amber-700 mt-1.5">{powerPricingWarning.message}</p>
+                )}
               </div>
 
               <div>
@@ -556,16 +607,15 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
             </div>
           </div>
 
-          {/* ── Cutting Head ── */}
+          {/* ── Bevel ── */}
           <div>
-            <p className={sectionHeadCls}>Cutting Head</p>
+            <p className={sectionHeadCls}>Bevel</p>
             <div className="flex flex-wrap gap-4">
-              {[
-                { value: 'None', label: 'None', sub: 'Standard flat cutting' },
-                { value: 'Basic Bevel', label: 'Basic Bevel Head', sub: 'Single-axis bevel  +$50K' },
-                { value: 'Plus Bevel', label: 'Plus Bevel Head', sub: 'Multi-axis bevel  +$120K' },
-              ].map(({ value, label, sub }) => {
-                const disabled = !allowedBevels.includes(value as MachineOption['bevelHead'])
+              {([
+                { value: 'No' as const, sub: 'Standard flat cutting' },
+                { value: 'Yes' as const, sub: 'Bevel cutting head' },
+              ]).map(({ value, sub }) => {
+                const disabled = value === 'Yes' ? bevelUiOptions.yesDisabled : bevelUiOptions.noDisabled
                 return (
                   <label
                     key={value}
@@ -583,12 +633,12 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
                       value={value}
                       disabled={disabled}
                       checked={m.bevelHead === value}
-                      onChange={() => updateMachine(activeTab, { bevelHead: value as MachineOption['bevelHead'] })}
+                      onChange={() => updateMachine(activeTab, { bevelHead: value })}
                       className="accent-[#1B6FC8] mt-0.5 disabled:cursor-not-allowed"
                     />
                     <div>
                       <div className={`text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-800'}`}>
-                        {label}
+                        {value}
                       </div>
                       <div className={`text-xs ${disabled ? 'text-gray-300' : 'text-gray-500'}`}>{sub}</div>
                     </div>

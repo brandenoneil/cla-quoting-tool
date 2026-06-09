@@ -2,9 +2,10 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { buildQuoteOption } from '@/lib/pricingEngine'
 import {
-  coerceBevelHeadForModel,
+  coerceBevelForModel,
   coerceLaserSourceForModel,
   coercePowerForModel,
+  isPlusBevelMachineModel,
 } from '@/lib/machineConstraints'
 import { coerceSmartOptionsForModel } from '@/lib/productRules'
 import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
@@ -14,7 +15,7 @@ import type { QuoteConfig, QuoteOption, MachineOption } from '@/types'
 function sanitizeMachine(m: MachineOption): MachineOption {
   const laserSource = coerceLaserSourceForModel(m.laserSource, m.machineModel)
   const machinePower = coercePowerForModel(m.machinePower, m.machineModel, laserSource)
-  const bevelHead = coerceBevelHeadForModel(m.bevelHead, m.machineModel)
+  const bevelHead = coerceBevelForModel(m.bevelHead, m.machineModel)
   const smart = coerceSmartOptionsForModel({
     machineModel: m.machineModel,
     smartMix: m.smartMix,
@@ -39,7 +40,7 @@ function machineToConfig(m: MachineOption): QuoteConfig {
     model: m.machineModel || '',
     power: m.machinePower || '6kW',
     laser: m.laserSource || 'IPG',
-    bevel: m.bevelHead || 'None',
+    bevel: m.bevelHead || 'No',
     training_days: m.trainingDays || 0,
     warranty: m.extendedWarranty || 'None',
     smartMix: m.smartMix ?? false,
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
         machineModel: formData.machineModel || '',
         machinePower: formData.machinePower || '6kW',
         laserSource: formData.laserSource || 'IPG',
-        bevelHead: formData.bevelHead || 'None',
+        bevelHead: formData.bevelHead || 'No',
         smartMix: false, smartChanger: false, smartGrease: false,
         smartDoor: false, smartRaster: false, smartSetUp: false,
         automation: 'None',
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
       name: m.machineModel ? `${m.machineModel} ${m.machinePower}` : engineResult.name,
       tagline: [
         m.laserSource !== 'IPG' ? m.laserSource : '',
-        /plus\s*bevel/i.test(m.machineModel) ? 'Plus Bevel' : m.bevelHead !== 'None' ? m.bevelHead : '',
+        m.bevelHead === 'Yes' && !isPlusBevelMachineModel(m.machineModel) ? 'Bevel' : '',
         m.automation !== 'None' ? `${m.automation} Automation` : '',
       ].filter(Boolean).join(' · ') || engineResult.tagline,
       notes: customPricing

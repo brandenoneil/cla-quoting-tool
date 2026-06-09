@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import type { Session } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { buildQuoteOption } from '@/lib/pricingEngine'
-import { coerceBevelHeadForModel, coerceLaserSourceForModel } from '@/lib/machineConstraints'
+import { coerceBevelForModel, coerceLaserSourceForModel } from '@/lib/machineConstraints'
 import {
   getFormatNeighborModels,
   getPowerNeighborKws,
@@ -73,7 +73,7 @@ function computeSlot(
   bevelUi: MachineOption['bevelHead']
 ): PriceCheckSlot {
   const laserLabel = coerceLaserSourceForModel(laserUi, modelNorm)
-  const bevel = coerceBevelHeadForModel(bevelUi, modelNorm)
+  const bevel = coerceBevelForModel(bevelUi, modelNorm)
   const config = toQuoteConfig(modelNorm, powerLabel, laserLabel, bevel)
   const kw = parseKw(powerLabel)
   const sheet = lookupPrice(modelNorm, laserLabel, kw)
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
   const rawModel = (body.machineModel ?? '').trim()
   const rawPower = (body.machinePower ?? '6kW').trim()
   const rawLaser = body.laserSource ?? 'IPG'
-  const rawBevel = (body.bevelHead ?? 'None') as MachineOption['bevelHead']
+  const rawBevel = (body.bevelHead ?? 'No') as MachineOption['bevelHead']
   const neighborMode: NeighborMode = body.neighborMode === 'power' ? 'power' : 'format'
 
   if (!rawModel) return Response.json({ error: 'machineModel required' }, { status: 400 })

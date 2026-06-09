@@ -132,8 +132,19 @@ export default function IntakeChat({ dealContext, onQuoteDataExtracted }: Props)
   }
 
   function renderContent(content: string) {
-    // Strip the JSON block from display
-    return content.replace(/\[QUOTE_DATA\][\s\S]*?\[\/QUOTE_DATA\]/g, '')
+    const stripped = content.replace(/\[QUOTE_DATA\][\s\S]*?\[\/QUOTE_DATA\]/g, '')
+    const noticeMatch = stripped.match(/^(⚠ Pricing note:[^\n]+)\n\n([\s\S]*)$/)
+    if (noticeMatch) {
+      return (
+        <>
+          <div className="mb-2.5 px-3 py-2 rounded-lg bg-amber-100 border border-amber-300 text-amber-950 text-xs leading-relaxed">
+            {noticeMatch[1]}
+          </div>
+          {noticeMatch[2]}
+        </>
+      )
+    }
+    return stripped
   }
 
   return (

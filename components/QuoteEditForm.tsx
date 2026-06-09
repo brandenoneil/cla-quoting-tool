@@ -6,13 +6,14 @@ import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
 import { hasExactSheetRow } from '@/lib/priceCheckNeighbors'
 import {
   canonicalLaserSource,
-  coerceBevelHeadForModel,
+  coerceBevelForModel,
   coerceLaserSourceForModel,
   coercePowerForModel,
   getAllowedPowerLabels,
   LASER_SOURCE_LABELS,
-  getAllowedBevelHeads,
+  getBevelUiOptions,
   getAllowedLaserSources,
+  parseBevelFromIntake,
 } from '@/lib/machineConstraints'
 import {
   coerceSmartOptionsForModel,
@@ -56,7 +57,7 @@ function blankMachine(label: string, overrides: Partial<MachineOption> = {}): Ma
     machineModel: '',
     machinePower: '6kW',
     laserSource: 'IPG',
-    bevelHead: 'None',
+    bevelHead: 'No',
     smartMix: false,
     smartChanger: false,
     smartGrease: false,
@@ -85,9 +86,9 @@ function lineItemsToMachine(items: LineItem[], quote: QuoteData): MachineOption 
   else if (has('inline')) automation = 'Inline No Tower'
   else if (has('no tower')) automation = 'No Tower'
 
-  let bevelHead: MachineOption['bevelHead'] = (quote.bevelHead as MachineOption['bevelHead']) || 'None'
-  if (has('plus bevel')) bevelHead = 'Plus Bevel'
-  else if (has('basic bevel')) bevelHead = 'Basic Bevel'
+  let bevelHead: MachineOption['bevelHead'] =
+    (quote.bevelHead as MachineOption['bevelHead']) || 'No'
+  if (has('bevel head') || has('plus bevel head') || has('basic bevel head')) bevelHead = 'Yes'
 
   let trainingDays = 0
   for (const item of items) {
@@ -106,7 +107,7 @@ function lineItemsToMachine(items: LineItem[], quote: QuoteData): MachineOption 
     machineModel: quote.machineModel,
     machinePower: quote.machinePower,
     laserSource: coerceLaserSourceForModel(quote.laserSource, quote.machineModel),
-    bevelHead: coerceBevelHeadForModel(bevelHead, quote.machineModel),
+    bevelHead: coerceBevelForModel(bevelHead, quote.machineModel),
     smartMix:        has('smart mix'),
     smartChanger:    has('smart changer'),
     smartGrease:     has('smart grease'),
@@ -134,13 +135,11 @@ function autoCheckFromIntake(d: Record<string, any>): Partial<MachineOption> {
     : notes.includes('automation') || notes.includes('smart flow') ? 'No Tower'
     : 'None'
   const model = d.model || ''
-  const rawBevel = (['None', 'Basic Bevel', 'Plus Bevel'].includes(d.bevel)
-    ? d.bevel : 'None') as MachineOption['bevelHead']
   return {
     machineModel: model,
     machinePower: d.power || '6kW',
     laserSource: coerceLaserSourceForModel(canonicalLaserSource(d.laser), model),
-    bevelHead: coerceBevelHeadForModel(rawBevel, model),
+    bevelHead: coerceBevelForModel(parseBevelFromIntake(d.bevel, model), model),
     smartMix:     notes.includes('smart mix')     || notes.includes('gas mix'),
     smartChanger: notes.includes('smart changer') || notes.includes('nozzle change'),
     smartGrease:  notes.includes('smart grease')  || notes.includes('greasing'),
@@ -170,8 +169,8 @@ function PricePreview({ model, power, laser }: { model: string; power: string; l
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
         <div>
-          <p className="text-sm font-semibold text-amber-800">Non-standard model — custom pricing required</p>
-          <p className="text-xs text-amber-700 mt-0.5">This model isn't in the Feb 2026 price sheet. Pricing will need to be set manually in the line items below.</p>
+          <p className="text-sm font-semibold text-amber-800">No current pricing on the Feb 2026 sheet</p>
+          <p className="text-xs text-amber-700 mt-0.5">We don&apos;t have current pricing for this configuration. Machine base pricing will be TBD.</p>
         </div>
       </div>
     )
@@ -187,7 +186,7 @@ function PricePreview({ model, power, laser }: { model: string; power: string; l
 function coerceMachineFields(merged: MachineOption): MachineOption {
   merged.laserSource = coerceLaserSourceForModel(merged.laserSource, merged.machineModel)
   merged.machinePower = coercePowerForModel(merged.machinePower, merged.machineModel, merged.laserSource)
-  merged.bevelHead = coerceBevelHeadForModel(merged.bevelHead, merged.machineModel)
+  merged.bevelHead = coerceBevelForModel(merged.bevelHead, merged.machineModel)
   return { ...merged, ...coerceSmartOptionsForModel(merged) }
 }
 
@@ -420,7 +419,7 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
 
   const m = machines[activeTab]
   const allowedLasers = getAllowedLaserSources(m.machineModel)
-  const allowedBevels = getAllowedBevelHeads(m.machineModel)
+  const bevelUiOptions = getBevelUiOptions(m.machineModel)
   const sheetPowers = getAllowedPowerLabels(m.machineModel, m.laserSource)
   const powerOptions = sheetPowers.length > 0 ? sheetPowers : POWER_OPTIONS
   const allowedSmart = getAllowedSmartOptions(m.machineModel)
@@ -634,16 +633,15 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
             </div>
           </div>
 
-          {/* Cutting Head */}
+          {/* Bevel */}
           <div>
-            <p className={sectionHead}>Cutting Head</p>
+            <p className={sectionHead}>Bevel</p>
             <div className="flex flex-wrap gap-4">
-              {[
-                { value: 'None',        label: 'None',             sub: 'Standard flat cutting' },
-                { value: 'Basic Bevel', label: 'Basic Bevel Head', sub: 'Single-axis bevel  +$50K' },
-                { value: 'Plus Bevel',  label: 'Plus Bevel Head',  sub: 'Multi-axis bevel  +$120K' },
-              ].map(({ value, label, sub }) => {
-                const disabled = !allowedBevels.includes(value as MachineOption['bevelHead'])
+              {([
+                { value: 'No' as const, sub: 'Standard flat cutting' },
+                { value: 'Yes' as const, sub: 'Bevel cutting head' },
+              ]).map(({ value, sub }) => {
+                const disabled = value === 'Yes' ? bevelUiOptions.yesDisabled : bevelUiOptions.noDisabled
                 return (
                   <label
                     key={value}
@@ -661,11 +659,13 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
                       value={value}
                       disabled={disabled}
                       checked={m.bevelHead === value}
-                      onChange={() => updateMachine(activeTab, { bevelHead: value as MachineOption['bevelHead'] })}
+                      onChange={() => updateMachine(activeTab, { bevelHead: value })}
                       className="accent-[#1B6FC8] mt-0.5 disabled:cursor-not-allowed"
                     />
                     <div>
-                      <div className={`text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-800'}`}>{label}</div>
+                      <div className={`text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-800'}`}>
+                        {value}
+                      </div>
                       <div className={`text-xs ${disabled ? 'text-gray-300' : 'text-gray-500'}`}>{sub}</div>
                     </div>
                   </label>

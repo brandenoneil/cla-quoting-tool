@@ -369,6 +369,10 @@ const OPTION_DESCRIPTIONS: Record<string, { title: string; body: string }> = {
     title: 'SMART FLOW CS — LOAD/UNLOAD AUTOMATION WITH TOWER',
     body: 'SMART Flow CS with tower provides automated sheet loading from a multi-level tower storage system, combined with automated finished part unloading. The 90-degree tower design maximizes sheet storage density while minimizing floor space. The system integrates directly with the Cutlite Smart Manager Plus software for lights-out production capability.',
   },
+  'Bevel Head': {
+    title: 'BEVEL HEAD',
+    body: 'Bevel cutting capability for weld-ready angled cuts. On PLUS Bevel machines this is included in the base machine; on other lines it is an optional add-on.',
+  },
   'Plus Bevel Head': {
     title: 'PLUS BEVEL HEAD',
     body: 'The multi-axis Plus Bevel head enables bevel cutting up to ±45° in all directions, driven by precision linear motors with absolute inductive encoders on the B and C axes. This capability allows cut-ready weld preparation directly on the laser, eliminating secondary beveling operations.',

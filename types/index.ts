@@ -18,8 +18,8 @@ export interface MachineOption {
   machinePower: string
   laserSource: string
 
-  // Cutting head (exclusive)
-  bevelHead: 'None' | 'Basic Bevel' | 'Plus Bevel'
+  // Bevel (yes/no — optional add-on or built into PLUS Bevel machines)
+  bevelHead: 'Yes' | 'No'
 
   // SMART Options (checkboxes)
   smartMix: boolean         // Gas Mix System

@@ -1,5 +1,7 @@
 import type { LineItem, QuoteConfig, QuoteOption } from '@/types'
 import { modelToKey } from './dealParser'
+import { isPlusBevelMachineModel } from './machineConstraints'
+import { normalizeModel } from './pricingTable'
 
 const BASE_PRICES: Record<string, [number, number]> = {
   'fast-4020':        [400000, 600000],
@@ -10,6 +12,12 @@ const BASE_PRICES: Record<string, [number, number]> = {
   'plus-bevel-6525':  [900000, 2500000],
   'plus-bevel-19025': [2500000, 4500000],
   'fiber-tube-tl':    [800000, 2000000],
+}
+
+function configHasBevel(bevel: string): boolean {
+  const b = (bevel ?? '').trim().toLowerCase()
+  if (!b || b === 'no' || b === 'none' || b === 'false') return false
+  return true
 }
 
 const POWER_MULT: Record<string, number> = {
@@ -50,6 +58,12 @@ export const ADDONS = {
   ulCertification: 12000,
   cadCamSoftware: 8900,
   sideLoad: 22000,
+}
+
+function bevelAddonPrice(model: string): number {
+  const norm = normalizeModel(model || '')
+  if (/^XMF\b/i.test(norm)) return ADDONS.bevelBasic
+  return ADDONS.bevelPlus
 }
 
 function getBasePrice(modelKey: string): [number, number] {
@@ -138,25 +152,16 @@ export function buildLineItems(config: QuoteConfig, sheetBasePrice?: number): Li
     })
   }
 
-  // ── Bevel head ──────────────────────────────────────────────────────────────
-  // PLUS Bevel machines: sheet price already includes the bevel — don't add again.
-  // Non-bevel machines: add cost only if a bevel option was selected.
-  const isPlusBevelMachine = /plus\s*bevel/i.test(config.model)
-  if (!isPlusBevelMachine) {
-    const bevel = config.bevel.toLowerCase()
-    if (bevel.includes('plus')) {
-      items.push({
-        description: 'Plus Bevel Head',
-        detail: 'Multi-axis bevel cutting capability',
-        qty: 1, unitPrice: ADDONS.bevelPlus, amount: ADDONS.bevelPlus, included: false,
-      })
-    } else if (bevel.includes('basic')) {
-      items.push({
-        description: 'Basic Bevel Head',
-        detail: 'Single-axis bevel cutting option',
-        qty: 1, unitPrice: ADDONS.bevelBasic, amount: ADDONS.bevelBasic, included: false,
-      })
-    }
+  // ── Bevel ───────────────────────────────────────────────────────────────────
+  // PLUS Bevel machines: sheet price already includes bevel — don't add again.
+  // Other machines: add bevel head cost only when bevel is Yes.
+  if (!isPlusBevelMachineModel(config.model) && configHasBevel(config.bevel)) {
+    const amount = bevelAddonPrice(config.model)
+    items.push({
+      description: 'Bevel Head',
+      detail: 'Bevel cutting capability',
+      qty: 1, unitPrice: amount, amount, included: false,
+    })
   }
 
   // ── Standard inclusions ─────────────────────────────────────────────────────

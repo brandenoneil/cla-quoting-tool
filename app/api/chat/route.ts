@@ -1,6 +1,10 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getAnthropicClient, INTAKE_SYSTEM_PROMPT } from '@/lib/anthropic'
+import {
+  buildIntakeValidationSystemBlock,
+  getChatValidationNotice,
+} from '@/lib/intakeSheetValidation'
 import { NextRequest } from 'next/server'
 
 export async function POST(req: NextRequest) {
@@ -60,6 +64,13 @@ export async function POST(req: NextRequest) {
     }
     }
 
+    const validationBlock = buildIntakeValidationSystemBlock(messages)
+    if (validationBlock) {
+      systemPrompt += `\n\n${validationBlock}`
+    }
+
+    const validationNotice = getChatValidationNotice(messages)
+
     const stream = await client.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
@@ -75,6 +86,11 @@ export async function POST(req: NextRequest) {
     const readable = new ReadableStream({
       async start(controller) {
         try {
+          if (validationNotice) {
+            const prefix = `data: ${JSON.stringify({ text: validationNotice })}\n\n`
+            controller.enqueue(encoder.encode(prefix))
+          }
+
           for await (const chunk of stream) {
             if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
               const data = `data: ${JSON.stringify({ text: chunk.delta.text })}\n\n`
