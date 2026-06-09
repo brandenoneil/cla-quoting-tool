@@ -5,6 +5,7 @@ import {
   createTask,
   updateDeal,
 } from '@/lib/hubspot'
+import { isPendingHubSpotDealId } from '@/lib/dealerHubSpotDeal'
 import {
   getSalesAlertOwnerIds,
   hubspotDealUrl,
@@ -54,7 +55,7 @@ export interface DealerQuoteAlertOption {
 }
 
 export interface DealerQuoteAlertPayload {
-  dealId: string
+  dealId?: string | null
   dealName: string
   dealerName: string
   dealerEmail: string
@@ -63,14 +64,17 @@ export interface DealerQuoteAlertPayload {
   contactName: string
   contactEmail: string
   options: DealerQuoteAlertOption[]
+  quoteReviewUrl?: string
   hubspotDraftErrors?: string[]
 }
 
-/** HubSpot-native alerts after dealer quote drafts are on the deal. */
+/** Notify inside sales of a new dealer quote request. HubSpot deal is created on approval, not submit. */
 export async function notifySalesTeamOfDealerQuote(payload: DealerQuoteAlertPayload): Promise<void> {
   const ownerIds = getSalesAlertOwnerIds()
   const primaryOwnerId = ownerIds[0]
-  const dealUrl = hubspotDealUrl(payload.dealId)
+  const hasHubSpotDeal = payload.dealId != null && !isPendingHubSpotDealId(payload.dealId)
+  const dealUrl = hasHubSpotDeal ? hubspotDealUrl(payload.dealId!) : null
+  const reviewLink = payload.quoteReviewUrl ?? 'CLA Quoting Tool → Pending Review queue'
 
   const machineSummary = payload.options
     .map(
@@ -98,8 +102,10 @@ export async function notifySalesTeamOfDealerQuote(payload: DealerQuoteAlertPayl
   const noteBody = [
     '🔔 Dealer quote request — action required',
     '',
-    `Deal: ${payload.dealName}`,
-    `Deal link: ${dealUrl}`,
+    `Request: ${payload.dealName}`,
+    hasHubSpotDeal && dealUrl
+      ? `Deal link: ${dealUrl}`
+      : `Review in Quote Tool: ${reviewLink}`,
     '',
     `Dealer: ${payload.dealerName} (${payload.dealerEmail})` +
       (payload.dealerCompany ? ` — ${payload.dealerCompany}` : ''),
@@ -108,51 +114,58 @@ export async function notifySalesTeamOfDealerQuote(payload: DealerQuoteAlertPayl
     'Requested configurations:',
     machineSummary,
     '',
-    'HubSpot quotes:',
-    quoteLines,
+    hasHubSpotDeal ? 'HubSpot quotes:' : 'HubSpot:',
+    hasHubSpotDeal
+      ? quoteLines
+      : 'Deal and quote will be created in HubSpot when your team approves this request.',
     ...(payload.hubspotDraftErrors?.length
       ? ['', `Warnings: ${payload.hubspotDraftErrors.join(' | ')}`]
       : []),
   ].join('\n')
-
-  try {
-    const note = await createNote(noteBody)
-    await delay(100)
-    await associateNoteToDeal(note.id, payload.dealId)
-  } catch {
-    /* non-fatal */
-  }
 
   const taskSubject = `Review dealer quote: ${payload.customerCompany} — ${payload.options[0]?.machineModel ?? 'quote'}`
   const taskBody = [
     `${payload.dealerName} submitted a quote request via the dealer portal.`,
     `Customer: ${payload.customerCompany} (${payload.contactName})`,
     machineSummary,
-    `Open deal: ${dealUrl}`,
+    hasHubSpotDeal && dealUrl ? `Open deal: ${dealUrl}` : `Review: ${reviewLink}`,
   ].join('\n')
 
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + 1)
 
-  for (const ownerId of ownerIds) {
+  if (hasHubSpotDeal && payload.dealId) {
     try {
-      const task = await createTask(taskSubject, taskBody, 'HIGH', { ownerId, dueDate })
+      const note = await createNote(noteBody)
       await delay(100)
-      await associateTaskToDeal(task.id, payload.dealId)
+      await associateNoteToDeal(note.id, payload.dealId)
     } catch {
       /* non-fatal */
     }
   }
 
-  try {
-    const dealProps: Record<string, string> = {
-      [QUOTE_TOOL_STATUS_PROPERTY]: 'ready_for_review',
-      [QUOTE_TOOL_MACHINE_SUMMARY_PROPERTY]: machineSummary.slice(0, 500),
+  for (const ownerId of ownerIds) {
+    try {
+      const task = await createTask(taskSubject, taskBody, 'HIGH', { ownerId, dueDate })
+      await delay(100)
+      if (hasHubSpotDeal && payload.dealId) {
+        await associateTaskToDeal(task.id, payload.dealId)
+      }
+    } catch {
+      /* non-fatal */
     }
-    if (primaryOwnerId) dealProps.hubspot_owner_id = primaryOwnerId
-    await updateDeal(payload.dealId, dealProps)
-  } catch {
-    /* workflow trigger may need custom properties created in HubSpot admin */
+  }
+
+  if (hasHubSpotDeal && payload.dealId) {
+    try {
+      const dealProps: Record<string, string> = {
+        [QUOTE_TOOL_STATUS_PROPERTY]: 'ready_for_review',
+        [QUOTE_TOOL_MACHINE_SUMMARY_PROPERTY]: machineSummary.slice(0, 500),
+      }
+      if (primaryOwnerId) dealProps.hubspot_owner_id = primaryOwnerId
+      await updateDeal(payload.dealId, dealProps)
+    } catch {
+      /* workflow trigger may need custom properties created in HubSpot admin */
+    }
   }
 }
-

@@ -1,12 +1,9 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createDealerHubSpotDeal } from '@/lib/dealerHubSpotDeal'
-import { fetchQuoteTemplates } from '@/lib/hubspot'
-import { getPrimarySalesOwnerId } from '@/lib/hubspotConfig'
+import { createPendingHubSpotDealId } from '@/lib/dealerHubSpotDeal'
 import { notifySalesTeamOfDealerQuote } from '@/lib/notifySalesTeam'
 import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
-import { pushQuoteDraftToHubSpot, resolveTemplateId } from '@/lib/pushHubSpotQuoteDraft'
 import { NextRequest } from 'next/server'
 import type { QuoteOption } from '@/types'
 
@@ -21,7 +18,7 @@ function generateQuoteNumber(): string {
 async function saveOneOption(
   option: QuoteOption,
   formData: any,
-  dealId: string,
+  pendingDealId: string,
   dealName: string,
   dealerEmail: string,
   dealerCompany: string
@@ -36,7 +33,7 @@ async function saveOneOption(
   return prisma.quote.create({
     data: {
       quoteNumber,
-      hubspotDealId: dealId,
+      hubspotDealId: pendingDealId,
       hubspotDealName: dealName,
       company: formData.company,
       contactName: formData.contactName,
@@ -84,105 +81,20 @@ export async function POST(req: NextRequest) {
     const dealerCompany = (session.user as any)?.dealerCompany || ''
     const primaryOption = options[0]
     const dealName = `${formData.company} - ${primaryOption.machineModel}`
-    const primaryOwnerId = getPrimarySalesOwnerId()
-    const avgAmount = Math.round(
-      options.reduce((s, o) => s + o.totalPrice, 0) / options.length
-    )
-
-    let hubspotSetup: Awaited<ReturnType<typeof createDealerHubSpotDeal>>
-    try {
-      hubspotSetup = await createDealerHubSpotDeal({
-        dealName,
-        amount: avgAmount,
-        dealerCompany,
-        primaryOwnerId,
-        customerCompany: formData.company,
-        contactName: formData.contactName,
-        contactEmail: formData.contactEmail,
-        contactPhone: formData.contactPhone,
-      })
-    } catch (err: any) {
-      return Response.json(
-        {
-          error:
-            err?.message ??
-            'Could not create HubSpot deal. Check HubSpot configuration and try again.',
-        },
-        { status: 502 }
-      )
-    }
-
-    const dealId = hubspotSetup.dealId
-    const hubspotDraftErrors: string[] = []
-    const hubspotInternalWarnings: string[] = []
-
-    if (hubspotSetup.ownerAssignmentSkipped) {
-      hubspotInternalWarnings.push(
-        'Deal created without an assigned owner — set SALES_ALERT_HUBSPOT_OWNER_IDS to valid HubSpot owner IDs from Settings → Users & Teams.'
-      )
-    }
-    for (const prop of hubspotSetup.skippedProperties) {
-      if (prop !== 'hubspot_owner_id') {
-        hubspotInternalWarnings.push(`HubSpot rejected deal property "${prop}" — deal created without it.`)
-      }
-    }
-    hubspotDraftErrors.push(...hubspotSetup.associationWarnings)
-
-    console.info('[dealer/quotes/submit] HubSpot deal created', {
-      dealId,
-      dealUrl: hubspotSetup.dealUrl,
-      ownerAssignmentSkipped: hubspotSetup.ownerAssignmentSkipped,
-      skippedProperties: hubspotSetup.skippedProperties,
-    })
-
-    await new Promise((r) => setTimeout(r, 150))
+    const pendingDealId = createPendingHubSpotDealId()
 
     const quotes = await Promise.all(
-      options.map((opt) => saveOneOption(opt, formData, dealId, dealName, dealerEmail, dealerCompany))
+      options.map((opt) =>
+        saveOneOption(opt, formData, pendingDealId, dealName, dealerEmail, dealerCompany)
+      )
     )
 
-    const pushedDrafts: Array<{
-      quoteId: string
-      quoteNumber: string
-      hubspotQuoteId: string
-      templateId: string | null
-    }> = []
-
-    let templates: Awaited<ReturnType<typeof fetchQuoteTemplates>> = []
-    try {
-      templates = await fetchQuoteTemplates()
-    } catch (err: any) {
-      hubspotDraftErrors.push(`Could not load HubSpot templates: ${err?.message ?? 'unknown error'}`)
-    }
-
-    for (const q of quotes) {
-      try {
-        const templateId = resolveTemplateId(q.machineModel, templates, null, formData.company)
-        if (!templateId && templates.length > 0) {
-          hubspotDraftErrors.push(
-            `${q.quoteNumber}: no HubSpot template matched "${q.machineModel}" — quote pushed without template`
-          )
-        }
-
-        const { hubspotQuoteId, templateId: appliedTemplateId } = await pushQuoteDraftToHubSpot(q.id, {
-          templateId,
-          templates,
-        })
-        pushedDrafts.push({
-          quoteId: q.id,
-          quoteNumber: q.quoteNumber,
-          hubspotQuoteId,
-          templateId: appliedTemplateId,
-        })
-      } catch (err: any) {
-        hubspotDraftErrors.push(`${q.quoteNumber}: ${err?.message ?? 'Draft push failed'}`)
-      }
-    }
+    const appBase = (process.env.NEXTAUTH_URL || '').replace(/\/$/, '')
+    const quoteReviewUrl = appBase ? `${appBase}/quotes/${quotes[0]!.id}` : undefined
 
     const alertOptions = options.map((o, i) => {
       const kw = parseKw(o.machinePower)
       const customPricing = !lookupExactPrice(o.machineModel, o.laserSource, kw)
-      const pushed = pushedDrafts.find((p) => p.quoteNumber === quotes[i]?.quoteNumber)
       return {
         machineLabel: o.machineLabel,
         machineModel: o.machineModel,
@@ -190,14 +102,13 @@ export async function POST(req: NextRequest) {
         name: o.name,
         totalPrice: o.totalPrice,
         quoteNumber: quotes[i]?.quoteNumber ?? '',
-        hubspotQuoteId: pushed?.hubspotQuoteId ?? null,
+        hubspotQuoteId: null,
         customPricing,
       }
     })
 
     try {
       await notifySalesTeamOfDealerQuote({
-        dealId,
         dealName,
         dealerName,
         dealerEmail,
@@ -206,20 +117,18 @@ export async function POST(req: NextRequest) {
         contactName: formData.contactName,
         contactEmail: formData.contactEmail,
         options: alertOptions,
-        hubspotDraftErrors: [...hubspotDraftErrors, ...hubspotInternalWarnings],
+        quoteReviewUrl,
       })
     } catch {
-      /* non-fatal */
+      /* non-fatal — quote is saved locally for the sales queue */
     }
 
     return Response.json({
       quotes: await prisma.quote.findMany({ where: { id: { in: quotes.map((q) => q.id) } } }),
-      dealId,
       dealName,
-      hubspotDealUrl: hubspotSetup.dealUrl,
-      hubspotDraftsCreated: pushedDrafts.length,
-      hubspotDraftErrors,
-      templatesApplied: pushedDrafts.filter((p) => p.templateId).length,
+      hubspotDraftsCreated: 0,
+      hubspotDraftErrors: [],
+      templatesApplied: 0,
     })
   } catch (err: any) {
     console.error('[dealer/quotes/submit]', err)

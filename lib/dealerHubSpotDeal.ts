@@ -1,3 +1,4 @@
+import { prisma } from '@/lib/prisma'
 import {
   associateV3,
   createCompany,
@@ -7,13 +8,24 @@ import {
   hubspotConfigured,
   searchCompanyByName,
   searchContactByEmail,
+  updateDeal,
 } from '@/lib/hubspot'
 import { DEALER_PIPELINE_ID, hubspotDealUrl } from '@/lib/hubspotConfig'
 
-const OPPORTUNITY_QUALIFIED_STAGE = '168290363'
+export const OPPORTUNITY_QUALIFIED_STAGE = '168290363'
+export const PRELIM_PROPOSAL_STAGE = '168290366'
+export const PENDING_HUBSPOT_DEAL_PREFIX = 'pending:'
 
 function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
+}
+
+export function isPendingHubSpotDealId(dealId: string | null | undefined): boolean {
+  return !dealId || dealId.startsWith(PENDING_HUBSPOT_DEAL_PREFIX)
+}
+
+export function createPendingHubSpotDealId(): string {
+  return `${PENDING_HUBSPOT_DEAL_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 export interface DealerHubSpotDealInput {
@@ -25,6 +37,8 @@ export interface DealerHubSpotDealInput {
   contactName: string
   contactEmail: string
   contactPhone?: string
+  /** Defaults to Opportunity Qualified; use Prelim Proposal when approving a dealer request. */
+  dealstage?: string
 }
 
 export interface DealerHubSpotDealResult {
@@ -36,7 +50,7 @@ export interface DealerHubSpotDealResult {
   associationWarnings: string[]
 }
 
-/** Create a dealer-request deal in HubSpot with company + contact associations. */
+/** Create a dealer deal in HubSpot with company + contact associations. */
 export async function createDealerHubSpotDeal(
   input: DealerHubSpotDealInput
 ): Promise<DealerHubSpotDealResult> {
@@ -49,7 +63,7 @@ export async function createDealerHubSpotDeal(
   const dealProperties: Record<string, string | number> = {
     dealname: input.dealName,
     pipeline: DEALER_PIPELINE_ID,
-    dealstage: OPPORTUNITY_QUALIFIED_STAGE,
+    dealstage: input.dealstage ?? OPPORTUNITY_QUALIFIED_STAGE,
     amount: String(Math.round(input.amount)),
     closedate: new Date(Date.now() + 90 * 86400000).getTime(),
   }
@@ -114,4 +128,50 @@ export async function createDealerHubSpotDeal(
     skippedProperties,
     associationWarnings,
   }
+}
+
+export type DealerQuoteForHubSpot = {
+  id: string
+  hubspotDealId: string
+  hubspotDealName: string
+  company: string
+  contactName: string
+  contactEmail: string
+  contactPhone: string | null
+  totalAmount: number
+  dealerCompany: string | null
+}
+
+/** Create the HubSpot deal on first sales approval (dealer requests stay local until then). */
+export async function ensureHubSpotDealForDealerQuote(
+  quote: DealerQuoteForHubSpot
+): Promise<string> {
+  if (!isPendingHubSpotDealId(quote.hubspotDealId)) {
+    return quote.hubspotDealId
+  }
+
+  const setup = await createDealerHubSpotDeal({
+    dealName: quote.hubspotDealName,
+    amount: quote.totalAmount,
+    dealerCompany: quote.dealerCompany ?? undefined,
+    primaryOwnerId: undefined,
+    customerCompany: quote.company,
+    contactName: quote.contactName,
+    contactEmail: quote.contactEmail,
+    contactPhone: quote.contactPhone ?? undefined,
+    dealstage: PRELIM_PROPOSAL_STAGE,
+  })
+
+  await prisma.quote.updateMany({
+    where: { hubspotDealId: quote.hubspotDealId },
+    data: { hubspotDealId: setup.dealId },
+  })
+
+  try {
+    await updateDeal(setup.dealId, { quote_tool_status: 'published' })
+  } catch {
+    /* custom property may not exist yet */
+  }
+
+  return setup.dealId
 }

@@ -10,6 +10,7 @@ import BrandHeader from '@/components/BrandHeader'
 import type { LineItem } from '@/types'
 import { HUBSPOT_PORTAL_ID } from '@/types'
 import { canonicalLaserSource } from '@/lib/machineConstraints'
+import { isPendingHubSpotDealId } from '@/lib/dealerHubSpotDeal'
 
 function formatCurrency(n: number) {
   return '$' + Math.round(n).toLocaleString('en-US')
@@ -64,7 +65,7 @@ export default async function QuoteDetailPage({ params }: { params: { id: string
           >
             PDF ↓
           </a>
-          {quote.hubspotDealId && (
+          {quote.hubspotDealId && !isPendingHubSpotDealId(quote.hubspotDealId) && (
             <a
               href={`https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/record/0-3/${quote.hubspotDealId}`}
               target="_blank"
