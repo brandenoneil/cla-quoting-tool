@@ -5,6 +5,9 @@
     "app/api/quotes/[id]/pdf/route.ts": {
       "maxDuration": 60,
       "memory": 1024
+    },
+    "app/api/dealer/quotes/submit/route.ts": {
+      "maxDuration": 60
     }
   }
 }

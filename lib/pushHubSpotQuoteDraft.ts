@@ -88,7 +88,9 @@ export async function pushQuoteDraftToHubSpot(
 
   await delay(100)
 
-  for (const item of lineItems) {
+  const billableItems = lineItems.filter((item) => item.amount > 0 || item.unitPrice > 0)
+
+  for (const item of billableItems) {
     const lineItem = await createLineItem({
       name: item.description,
       quantity: item.qty,

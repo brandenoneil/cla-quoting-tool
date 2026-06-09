@@ -7,6 +7,7 @@ import {
   loadPriceCheckPrefill,
   priceCheckPrefillToIntake,
 } from '@/lib/priceCheckPrefill'
+import { parseApiResponse } from '@/lib/parseApiResponse'
 import StepIndicator from '@/components/StepIndicator'
 import DealerBrandHeader from '@/components/DealerBrandHeader'
 import DealerCustomerForm from '@/components/QuoteFlow/DealerCustomerForm'
@@ -145,7 +146,11 @@ export default function DealerNewQuotePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ formData, selectedOptions }),
       })
-      const json = await res.json()
+      const json = await parseApiResponse<{
+        error?: string
+        quotes?: Array<Record<string, unknown>>
+        hubspotDraftErrors?: string[]
+      }>(res)
       if (json.error) throw new Error(json.error)
 
       setSubmittedQuotes((json.quotes as any[]).map(q => ({

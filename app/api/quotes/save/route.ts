@@ -54,22 +54,34 @@ async function saveOneOption(
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session) return new Response('Unauthorized', { status: 401 })
-  if ((session.user as any).role === 'dealer') return new Response('Forbidden', { status: 403 })
+  if (!session) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  if ((session.user as any).role === 'dealer') {
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-  const { formData, selectedOption, selectedOptions, dealContext } = await req.json()
-  const createdBy = session.user?.email || 'unknown'
+  try {
+    const { formData, selectedOption, selectedOptions, dealContext } = await req.json()
+    const createdBy = session.user?.email || 'unknown'
 
-  // Support both single (legacy) and multi-option saves
-  const options: QuoteOption[] = selectedOptions ?? (selectedOption ? [selectedOption] : [])
-  if (options.length === 0) return Response.json({ error: 'No options provided' }, { status: 400 })
+    const options: QuoteOption[] = selectedOptions ?? (selectedOption ? [selectedOption] : [])
+    if (options.length === 0) {
+      return Response.json({ error: 'No options provided' }, { status: 400 })
+    }
 
-  const quotes = await Promise.all(
-    options.map(opt => saveOneOption(opt, formData, dealContext, createdBy))
-  )
+    const quotes = await Promise.all(
+      options.map((opt) => saveOneOption(opt, formData, dealContext, createdBy))
+    )
 
-  // Return first quote for backward-compat, plus full array
-  return Response.json({ quote: quotes[0], quotes })
+    return Response.json({ quote: quotes[0], quotes })
+  } catch (err: any) {
+    console.error('[quotes/save]', err)
+    return Response.json(
+      { error: err?.message ?? 'Failed to save quotes' },
+      { status: 500 }
+    )
+  }
 }
 
 export async function GET(_req: NextRequest) {
