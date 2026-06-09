@@ -1,4 +1,4 @@
-import { PRICE_TABLE, normalizeLaser } from '@/lib/pricingTable'
+import { PRICE_TABLE, normalizeLaser, normalizeModel } from '@/lib/pricingTable'
 
 export type NeighborMode = 'format' | 'power'
 
@@ -124,7 +124,8 @@ export function kwToPowerLabel(kw: number): string {
   return `${kw}kW`
 }
 
-export function hasExactSheetRow(modelNorm: string, laserSourceLabel: string, kw: number): boolean {
+export function hasExactSheetRow(modelRaw: string, laserSourceLabel: string, kw: number): boolean {
   const laser = normalizeLaser(laserSourceLabel)
+  const modelNorm = normalizeModel(modelRaw)
   return !!PRICE_TABLE[`${modelNorm}|${laser}|${kw}`]
 }

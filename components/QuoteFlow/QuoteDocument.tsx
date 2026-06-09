@@ -3,6 +3,7 @@
 import type { Quote } from '@prisma/client'
 import type { LineItem } from '@/types'
 import { canonicalLaserSource } from '@/lib/machineConstraints'
+import { formatSizeInFeet } from '@/lib/priceCheckCatalog'
 
 interface Props {
   quote: Quote
@@ -79,7 +80,21 @@ const CUTTING_AREAS: Record<string, string> = {
 function getCuttingArea(model: string): string {
   const m = model.match(/(\d{4,5})/)
   if (!m) return ''
+  const feet = formatSizeInFeet(m[1])
+  if (feet) return feet.replace(/ ft$/, '').replace(/ × /g, "' × ") + "'"
   return CUTTING_AREAS[m[1]] ?? ''
+}
+
+function machineKw(power: string): number {
+  const m = power.match(/(\d+)/)
+  return m ? parseInt(m[1], 10) : 0
+}
+
+function cuttingHeadBullet(power: string): string {
+  if (machineKw(power) >= 50) {
+    return 'EVO4 cutting head — required for 50kW+ (machine-specific focal configuration; not user-adjustable on 60kW builds)'
+  }
+  return 'EVO3 autofocusing cutting head — up to 50kW / 25 bar, focal configs 150/200/250mm'
 }
 
 type MachineFamily = 'FAST' | 'XME' | 'XMF' | 'PLUS_BEVEL' | 'PLUS_EVO' | 'FIBER_HD' | 'TUBE' | 'GENERIC'
@@ -179,7 +194,7 @@ function getMachineFeatures(family: MachineFamily, model: string, power: string,
     'Bevel cutting 1°–45° (V+, V−, Y+, Y−, X, K) without affecting cut flatness or quality',
     'Linear motor drive with absolute inductive encoders on B and C axes — 1.8G max acceleration',
     'Electro-welded thermally stabilized steel frame with cast aluminum alloy gantry structure',
-    'EVO3 autofocusing cutting head — up to 60kW / 25 bar, focal configs 150/200/250mm',
+    cuttingHeadBullet(power),
     `IPG fiber laser source (${power}) housed in NEMA 12 sealed, air-conditioned cabinet`,
     'Two-level pallet exchange system',
     'SMART Changer option — 10-position automatic nozzle change with cleaning & calibration',
@@ -193,7 +208,7 @@ function getMachineFeatures(family: MachineFamily, model: string, power: string,
     ...areaLine,
     'Linear motor drive with absolute inductive encoders — 3.2G max acceleration',
     'Lighter gantry design: cast aluminum alloy elements on electro-welded thermally stabilized frame',
-    'EVO3 autofocusing cutting head — up to 60kW / 25 bar, focal configs 150/200/250mm',
+    cuttingHeadBullet(power),
     `IPG fiber laser source (${power}) housed in NEMA 12 sealed, air-conditioned cabinet`,
     'Smart Manager Plus CNC software',
     'Two-level lift pallet exchange system',
@@ -210,7 +225,7 @@ function getMachineFeatures(family: MachineFamily, model: string, power: string,
     ...areaLine,
     'Rack-and-pinion drive (external to frame — unaffected by cutting debris) — 1.2G acceleration',
     'Aluminum electro-welded gantry enclosure — light, rigid, moves via rack and pinion',
-    'EVO3 autofocusing cutting head — up to 60kW / 25 bar, focal configs 150/200/250mm',
+    cuttingHeadBullet(power),
     `${laser} fiber laser source (${power}) housed in NEMA 12 sealed, air-conditioned cabinet`,
     'Large format capability — working areas from 13.3′×6.7′ up to 100′×12′',
     'Robust steel table structure — fast forklift or crane loading/unloading',
@@ -452,6 +467,11 @@ export default function QuoteDocument({ quote, isPdf = false }: Props) {
       id="quote-document"
       style={{ fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", color: C.darkGray, background: C.pageBg, maxWidth: '900px', margin: '0 auto' }}
     >
+      {!isPdf && (
+        <div style={{ background: '#FFF8E6', borderBottom: '1px solid #E8C547', padding: '12px 56px', fontSize: '13px', color: '#7A5C00' }}>
+          <strong>Internal preview only.</strong> Customer-facing quotes must use the confirmed HubSpot template after publish — this document is a draft reference, not the final quote.
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════
           COVER PAGE
@@ -680,11 +700,14 @@ export default function QuoteDocument({ quote, isPdf = false }: Props) {
 
         <Rule />
 
-        {/* EVO 3 cutting head — always shown */}
         <div style={{ padding: '28px 56px' }}>
-          <SubHeading>EVO 3 Cutting Head</SubHeading>
+          <SubHeading>{machineKw(quote.machinePower) >= 50 ? 'EVO 4 Cutting Head' : 'EVO 3 Cutting Head'}</SubHeading>
           <div style={{ fontSize: '13px', color: C.midGray, lineHeight: '1.75' }}>
-            <p>The <strong style={{ color: C.darkGray }}>{displayName}</strong> system uses the EVO 3 cutting head, an in-house designed and built autofocusing cutting head with non-contact capacitive sensors. The head itself and the focusing lenses can be used with <strong style={{ color: C.darkGray }}>up to 50KW</strong> of laser power, and a pressure of 25 bar. There are three different focal configurations: <strong style={{ color: C.darkGray }}>150-200-250-300 mm</strong>.</p>
+            {machineKw(quote.machinePower) >= 50 ? (
+            <p>The <strong style={{ color: C.darkGray }}>{displayName}</strong> at <strong style={{ color: C.darkGray }}>{quote.machinePower}</strong> uses the <strong style={{ color: C.darkGray }}>EVO 4</strong> cutting head required for high-power fiber laser cutting. Focal length is configured for this machine build and is not field-adjustable on 60kW systems.</p>
+            ) : (
+            <p>The <strong style={{ color: C.darkGray }}>{displayName}</strong> system uses the EVO 3 cutting head, an in-house designed and built autofocusing cutting head with non-contact capacitive sensors. The head itself and the focusing lenses can be used with <strong style={{ color: C.darkGray }}>up to 50kW</strong> of laser power, and a pressure of 25 bar. Focal configurations: <strong style={{ color: C.darkGray }}>150 / 200 / 250 mm</strong>.</p>
+            )}
             <p style={{ marginTop: '10px' }}>The assist gas is automatically selected from the 3 different connectable gases — Air, Nitrogen and Oxygen. Service pressures are selected automatically based on the cutting parameters and materials built into our SMART Manager Plus database.</p>
             <ul style={{ marginTop: '10px', paddingLeft: '20px' }}>
               {['Integrated non-contact capacitive sensor', 'High pressure gas management', 'Protective glass change drawer', 'Connections on the top of the cutting head', 'Management of contact and collision errors', 'Focals from 150mm to 300mm', 'Maximum pressure 25 bar', 'Nozzle standoff management', 'Nozzle cleaning and automatic calibration'].map((f, i) => (
@@ -747,7 +770,7 @@ export default function QuoteDocument({ quote, isPdf = false }: Props) {
           {quote.contactPhone && <div style={{ fontSize: '13px', color: C.midGray }}>{quote.contactPhone}</div>}
           <div style={{ fontSize: '13px', color: C.midGray, lineHeight: '1.75', marginTop: '16px' }}>
             <p>We are pleased to provide you with our quotation for a new Cutlite America Laser System Model <strong style={{ color: C.darkGray }}>{quote.machineModel} {quote.machinePower}</strong> {laserLabel} laser source{cuttingArea ? `, Cutting area: ${cuttingArea}` : ''}, with the terms and conditions discussed.</p>
-            <p style={{ marginTop: '10px' }}>Many thanks for your interest in Cutlite Penta, and please contact us at your convenience once you have reviewed this quotation.</p>
+            <p style={{ marginTop: '10px' }}>Many thanks for your interest in Cutlite America, and please contact us at your convenience once you have reviewed this quotation.</p>
             <p style={{ marginTop: '10px' }}>Sincerely,</p>
             <p style={{ marginTop: '4px', fontWeight: 600, color: C.darkGray }}>{quote.createdBy}</p>
           </div>

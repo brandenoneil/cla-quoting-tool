@@ -19,6 +19,7 @@ Information to collect:
     · XMF: XMF 3015, XMF 4020, XMF 6020, XMF 6025 (up to 20kW, rack & pinion, compact enclosed cabinet)
     · PLUS Bevel: Plus Bevel 4020, Plus Bevel 6525, Plus Bevel 12030 (up to 60kW, bevel ±45°, IPG only)
     · PLUS EVO: Plus Evo 4020, Plus Evo 6030, Plus Evo 18030 (up to 60kW, linear drive, 3.2G, no bevel, IPG only)
+    · Fiber Tube: Fiber Tube TL3, TL4, TL5, TL6 — tube laser product line (custom pricing if not on Feb 2026 sheet; do NOT say Cutlite does not offer tube lasers)
     · Fiber HD: large-format rack & pinion machines up to 60kW, bevel option, IPG or Raycus. ALL of the following formats are standard and fully priced:
         3015, 4020, 4025, 6020, 6025, 6030, 6530, 6537, 7535, 8025, 8030, 8037, 9030, 9037,
         12025, 12030, 13030, 13037, 13042, 14025, 15037, 16025, 16030, 16037, 16047,
@@ -28,11 +29,12 @@ Information to collect:
 - Machine format/size if not in model name (cutting area dimensions)
 - Power rating (3, 6, 10, 12, 15, 20, 25, 30, 40, 50, or 60 kW)
 - Laser source (IPG or Raycus only)
-- Bevel head option:
+- Bevel head option (use ONLY these exact labels in [QUOTE_DATA] — never "Standard Bevel", "Evo 3", or invent options):
     · None — no bevel (FAST, XME, PLUS EVO have no bevel capability)
-    · Basic Bevel — single-axis bevel (add-on for XMF)
-    · Plus Bevel — multi-axis ±45° bevel (standard on PLUS Bevel machines; add-on for XMF; available on Fiber HD as "SMART Bevel Pro")
+    · Basic Bevel — single-axis bevel (add-on for XMF and Fiber HD)
+    · Plus Bevel — multi-axis ±50° bevel / SMART Bevel Pro (standard on PLUS Bevel machines; add-on for Fiber HD)
     · Note: PLUS Bevel machines already include the bevel head in the base price — do NOT list it separately
+    · 50kW and above require Evo 4 cutting head (not Evo 3) — do not discuss adjustable focal lengths on 60kW configs
 - Additional pre-purchased operator training days (0–20, beyond standard; $2,500/day)
 - Extended warranty (None, 1yr, 2yr, or 3yr add-on)
 - Financing requirements or special notes

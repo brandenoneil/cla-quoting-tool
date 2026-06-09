@@ -10,7 +10,7 @@ import IntakeUpload from '@/components/QuoteFlow/IntakeUpload'
 import IntakeVoice from '@/components/QuoteFlow/IntakeVoice'
 import ReviewForm from '@/components/QuoteFlow/ReviewForm'
 import OptionCards, { type PricingContext } from '@/components/QuoteFlow/OptionCards'
-import { recommendTemplate } from '@/lib/templateMatcher'
+import { suggestTemplate } from '@/lib/templateMatcher'
 import type { QuoteTemplate } from '@/lib/hubspot'
 import type { QuoteFormData, QuoteOption } from '@/types'
 
@@ -54,6 +54,7 @@ function NewQuotePage() {
   const [templates, setTemplates] = useState<QuoteTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
   const [sharedTemplateId, setSharedTemplateId] = useState('')
+  const [templateConfirmed, setTemplateConfirmed] = useState(false)
   const [publishStatus, setPublishStatus] = useState<Record<string, 'idle' | 'publishing' | 'done' | 'error'>>({})
   const [publishResults, setPublishResults] = useState<Record<string, { hubspotQuoteId?: string; dealLink?: string; error?: string }>>({})
   const [publishingAll, setPublishingAll] = useState(false)
@@ -168,9 +169,15 @@ function NewQuotePage() {
         setTemplates(list)
         // Auto-select recommended template based on first saved quote's model
         if (savedQuotes.length > 0) {
-          const rec = recommendTemplate(savedQuotes[0].machineModel, list)
+          const rec = suggestTemplate(
+            savedQuotes[0].machineModel,
+            list,
+            formData?.company,
+            dealContext?.dealName
+          )
           if (rec) setSharedTemplateId(rec.id)
         }
+        setTemplateConfirmed(false)
       })
       .catch(() => {})
       .finally(() => setTemplatesLoading(false))
@@ -369,7 +376,10 @@ function NewQuotePage() {
             const allDone = savedQuotes.length > 0 && savedQuotes.every(q => publishStatus[q.id] === 'done')
             const anyDone = savedQuotes.some(q => publishStatus[q.id] === 'done')
             const pendingCount = savedQuotes.filter(q => publishStatus[q.id] !== 'done').length
-            const recommendedId = savedQuotes.length > 0 ? recommendTemplate(savedQuotes[0].machineModel, templates)?.id : undefined
+            const recommendedId = savedQuotes.length > 0
+              ? suggestTemplate(savedQuotes[0].machineModel, templates, formData?.company, dealContext?.dealName)?.id
+              : undefined
+            const canPublish = templateConfirmed
 
             return (
               <div>
@@ -394,7 +404,10 @@ function NewQuotePage() {
                       {templates.length > 0 ? (
                         <select
                           value={sharedTemplateId}
-                          onChange={e => setSharedTemplateId(e.target.value)}
+                          onChange={e => {
+                            setSharedTemplateId(e.target.value)
+                            setTemplateConfirmed(false)
+                          }}
                           className="cla-input py-2 text-sm"
                         >
                           <option value="">— No template —</option>
@@ -407,14 +420,30 @@ function NewQuotePage() {
                       ) : !templatesLoading ? (
                         <p className="text-sm text-gray-400 italic py-2">No templates available</p>
                       ) : null}
+                      {templates.length > 0 && (
+                        <label className="flex items-start gap-2 mt-3 text-sm text-gray-600 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 accent-[#1B6FC8]"
+                            checked={templateConfirmed}
+                            onChange={(e) => setTemplateConfirmed(e.target.checked)}
+                          />
+                          <span>
+                            I confirm the HubSpot quote template
+                            {sharedTemplateId
+                              ? ` (${templates.find(t => t.id === sharedTemplateId)?.name ?? 'selected'})`
+                              : ' (none — official terms will not apply)'}
+                          </span>
+                        </label>
+                      )}
                     </div>
 
                     {/* Publish All button */}
                     {!allDone && (
                       <button
                         onClick={publishAll}
-                        disabled={publishingAll}
-                        className="cla-btn-primary flex items-center gap-2 px-5 py-2 text-sm disabled:active:scale-100 whitespace-nowrap flex-shrink-0"
+                        disabled={publishingAll || !canPublish}
+                        className="cla-btn-primary flex items-center gap-2 px-5 py-2 text-sm disabled:active:scale-100 whitespace-nowrap flex-shrink-0 disabled:opacity-50"
                       >
                         {publishingAll ? (
                           <>

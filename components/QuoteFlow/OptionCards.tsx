@@ -7,7 +7,7 @@ export interface PricingContext {
   model: string
   kw: number
   laser: string
-  currentPrice: { list: number; net: number } | null
+  currentPrice: { list: number } | null
   historical: {
     avg: number | null
     count: number
@@ -103,10 +103,7 @@ export default function OptionCards({ options, selectedLabels, onToggle, onConti
             <div className="px-4 py-3">
               <p className="text-xs text-gray-500 mb-0.5">Sheet List Price (Feb 2026)</p>
               {sheet ? (
-                <>
-                  <p className="text-lg font-black text-[#0A2E52]">{fmt(sheet.list)}</p>
-                  <p className="text-xs text-gray-400">Net: {fmt(sheet.net)}</p>
-                </>
+                <p className="text-lg font-black text-[#0A2E52]">{fmt(sheet.list)}</p>
               ) : (
                 <p className="text-sm text-gray-400 italic">Not in price sheet</p>
               )}

@@ -8,7 +8,7 @@ import {
   fetchQuoteTemplates,
   type QuoteTemplate,
 } from '@/lib/hubspot'
-import { recommendTemplate } from '@/lib/templateMatcher'
+import { suggestTemplate } from '@/lib/templateMatcher'
 
 const SENDER_PROPS = {
   hs_currency: 'USD',
@@ -28,10 +28,11 @@ function delay(ms: number) {
 export function resolveTemplateId(
   machineModel: string,
   templates: QuoteTemplate[],
-  overrideId?: string | null
+  overrideId?: string | null,
+  companyName?: string
 ): string | null {
   if (overrideId) return overrideId
-  return recommendTemplate(machineModel, templates)?.id ?? null
+  return suggestTemplate(machineModel, templates, companyName)?.id ?? null
 }
 
 /**
@@ -49,7 +50,7 @@ export async function pushQuoteDraftToHubSpot(
 
   const templates = options?.templates ?? (await fetchQuoteTemplates())
   const templateId =
-    options?.templateId ?? resolveTemplateId(quote.machineModel, templates)
+    options?.templateId ?? resolveTemplateId(quote.machineModel, templates, null, quote.company)
 
   const lineItems: Array<{
     description: string

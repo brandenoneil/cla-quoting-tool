@@ -92,6 +92,35 @@ export function getSheetKwListForModelLaser(machineModelRaw: string, laserSource
   return sheetKwByModelLaser().get(`${norm}|${sheetLaser}`) ?? []
 }
 
+/** Power labels selectable in the UI for this model + laser. */
+export function getAllowedPowerLabels(machineModelRaw: string, laserSourceRaw: string): string[] {
+  const kws = getSheetKwListForModelLaser(machineModelRaw, laserSourceRaw)
+  if (kws.length === 0) return []
+  return kws.map((kw) => `${kw}kW`)
+}
+
+export function coercePowerForModel(
+  currentPower: string,
+  machineModelRaw: string,
+  laserSourceRaw: string
+): string {
+  const allowed = getAllowedPowerLabels(machineModelRaw, laserSourceRaw)
+  if (allowed.length === 0) return currentPower || '6kW'
+  if (allowed.includes(currentPower)) return currentPower
+  const wantKw = parseInt(currentPower.replace(/\D/g, ''), 10) || 6
+  let best = allowed[0]
+  let bestDiff = Infinity
+  for (const label of allowed) {
+    const kw = parseInt(label.replace(/\D/g, ''), 10)
+    const diff = Math.abs(kw - wantKw)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = label
+    }
+  }
+  return best
+}
+
 // ─── Cutting head availability (product-family rules) ───
 
 export function getAllowedBevelHeads(machineModelRaw: string): MachineOption['bevelHead'][] {

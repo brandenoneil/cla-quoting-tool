@@ -1,15 +1,23 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { lookupPrice, parseKw } from '@/lib/pricingTable'
+import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
+import { hasExactSheetRow } from '@/lib/priceCheckNeighbors'
 import {
   canonicalLaserSource,
   coerceBevelHeadForModel,
   coerceLaserSourceForModel,
+  coercePowerForModel,
   LASER_SOURCE_LABELS,
   getAllowedBevelHeads,
   getAllowedLaserSources,
+  getAllowedPowerLabels,
 } from '@/lib/machineConstraints'
+import {
+  coerceSmartOptionsForModel,
+  getAllowedSmartOptions,
+  isAutomationAllowed,
+} from '@/lib/productRules'
 import type { QuoteFormData, MachineOption } from '@/types'
 
 interface Props {
@@ -95,20 +103,21 @@ function autoCheckFromIntake(intakeData: Record<string, any>): Partial<MachineOp
 // ─── Pricing warning component ────────────────────────────────────────────────
 function PricePreview({ model, power, laser }: { model: string; power: string; laser: string }) {
   const kw = parseKw(power)
-  const price = model ? lookupPrice(model, laser, kw) : null
+  const exact = model ? lookupExactPrice(model, laser, kw) : null
+  const onSheet = model ? hasExactSheetRow(model, laser, kw) : false
 
   if (!model) return null
 
-  if (!price) {
+  if (!onSheet || !exact) {
     return (
       <div className="mt-3 flex items-start gap-2.5 px-3 py-2.5 bg-amber-50 border border-amber-300 rounded-lg">
         <svg className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
         <div>
-          <p className="text-sm font-semibold text-amber-800">Non-standard model — custom pricing required</p>
+          <p className="text-sm font-semibold text-amber-800">Custom pricing required (TBD)</p>
           <p className="text-xs text-amber-700 mt-0.5">
-            This model isn't in the Feb 2026 price sheet. You can still continue, but pricing will need to be determined manually.
+            This exact configuration is not on the Feb 2026 price sheet. You can save a draft with TBD machine pricing.
           </p>
         </div>
       </div>
@@ -116,17 +125,18 @@ function PricePreview({ model, power, laser }: { model: string; power: string; l
   }
 
   return (
-    <div className="mt-3 flex items-center gap-6 px-4 py-2.5 bg-[#E6F1FB] rounded-lg border border-blue-200">
-      <div>
-        <p className="text-xs text-gray-500">Feb 2026 List</p>
-        <p className="text-base font-bold text-[#0A2E52]">{fmt(price.list)}</p>
-      </div>
-      <div className="border-l border-blue-200 pl-6">
-        <p className="text-xs text-gray-500">Net (dealer)</p>
-        <p className="text-base font-bold text-[#1B6FC8]">{fmt(price.net)}</p>
-      </div>
+    <div className="mt-3 px-4 py-2.5 bg-[#E6F1FB] rounded-lg border border-blue-200">
+      <p className="text-xs text-gray-500">Feb 2026 list price (machine base)</p>
+      <p className="text-base font-bold text-[#0A2E52]">{fmt(exact.list)}</p>
     </div>
   )
+}
+
+function coerceMachineFields(merged: MachineOption): MachineOption {
+  merged.laserSource = coerceLaserSourceForModel(merged.laserSource, merged.machineModel)
+  merged.machinePower = coercePowerForModel(merged.machinePower, merged.machineModel, merged.laserSource)
+  merged.bevelHead = coerceBevelHeadForModel(merged.bevelHead, merged.machineModel)
+  return { ...merged, ...coerceSmartOptionsForModel(merged) }
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -175,12 +185,7 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
   function updateMachine(idx: number, patch: Partial<MachineOption>) {
     setMachines((prev) => {
       const next = [...prev]
-      const merged = { ...next[idx], ...patch }
-      if (patch.machineModel !== undefined || patch.laserSource !== undefined || patch.bevelHead !== undefined) {
-        // Keep the selected brand, only canonicalize spelling; do not lock to sheet-only laser.
-        merged.laserSource = canonicalLaserSource(merged.laserSource)
-        merged.bevelHead = coerceBevelHeadForModel(merged.bevelHead, merged.machineModel)
-      }
+      const merged = coerceMachineFields({ ...next[idx], ...patch })
       next[idx] = merged
       return next
     })
@@ -198,19 +203,17 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
     if (machines.length >= 3) return
     const source = machines[activeTab]
     const label = OPTION_LABELS[machines.length]
-    const fullyLoaded: MachineOption = {
+    const fullyLoaded = coerceMachineFields({
       ...source,
       id: `machine-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       label,
-      // All SMART options on
       smartMix: true,
       smartChanger: true,
       smartGrease: true,
       smartDoor: true,
       smartRaster: true,
       smartSetUp: true,
-      // Best automation (With Tower)
-      automation: 'With Tower',
+      automation: isAutomationAllowed(source.machineModel) ? 'With Tower' : 'None',
       // All additional equipment on
       pistonLift: true,
       ulCertification: true,
@@ -220,7 +223,7 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
       extendedWarranty: (
         source.extendedWarranty.includes('3') ? source.extendedWarranty : '+3 Years ($45K)'
       ),
-    }
+    })
     setMachines((prev) => [...prev, fullyLoaded])
     setActiveTab(machines.length)
   }
@@ -315,6 +318,10 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
 
   const allowedLasers = getAllowedLaserSources(m.machineModel)
   const allowedBevels = getAllowedBevelHeads(m.machineModel)
+  const sheetPowers = getAllowedPowerLabels(m.machineModel, m.laserSource)
+  const powerOptions = sheetPowers.length > 0 ? sheetPowers : POWER_OPTIONS
+  const allowedSmart = getAllowedSmartOptions(m.machineModel)
+  const automationAllowed = isAutomationAllowed(m.machineModel)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -507,7 +514,7 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
                   onChange={(e) => updateMachine(activeTab, { machinePower: e.target.value })}
                   className={inputCls}
                 >
-                  {POWER_OPTIONS.map((p) => <option key={p}>{p}</option>)}
+                  {powerOptions.map((p) => <option key={p}>{p}</option>)}
                 </select>
               </div>
 
@@ -515,7 +522,7 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
                 <label className={labelCls}>Laser Source</label>
                 <div className="flex gap-2 flex-wrap pt-1">
                   {LASER_SOURCE_LABELS.map((laser) => {
-                    const laserDisabled = false
+                    const laserDisabled = !allowedLasers.includes(laser)
                     return (
                       <label
                         key={laser}
@@ -608,6 +615,7 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
                   checked={m[key as keyof MachineOption] as boolean}
                   label={label}
                   sub={sub}
+                  disabled={!allowedSmart[key as keyof typeof allowedSmart]}
                   onChange={(v) => updateMachine(activeTab, { [key]: v })}
                 />
               ))}
@@ -617,30 +625,37 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
           {/* ── Automation ── */}
           <div>
             <p className={sectionHeadCls}>Automation</p>
+            {!automationAllowed && (
+              <p className="text-xs text-amber-700 mb-2">Load/unload automation is not available for this machine family.</p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { value: 'None',            label: 'None',                 sub: 'No automation' },
                 { value: 'Inline No Tower', label: 'Inline',               sub: 'Inline, no tower' },
                 { value: 'No Tower',        label: 'Load/Unload',          sub: 'SMART Flow, no tower' },
                 { value: 'With Tower',      label: 'Load/Unload + Tower',  sub: 'SMART Flow 90° tower' },
-              ].map(({ value, label, sub }) => (
-                <label key={value} className={`flex flex-col gap-0.5 cursor-pointer border rounded-lg px-3 py-2.5 transition-colors ${
-                  m.automation === value ? 'border-[#1B6FC8] bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              ].map(({ value, label, sub }) => {
+                const disabled = value !== 'None' && !automationAllowed
+                return (
+                <label key={value} className={`flex flex-col gap-0.5 border rounded-lg px-3 py-2.5 transition-colors ${
+                  disabled ? 'cursor-not-allowed opacity-45 border-gray-100 bg-gray-50' :
+                  m.automation === value ? 'border-[#1B6FC8] bg-blue-50 cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer'
                 }`}>
                   <div className="flex items-center gap-2">
                     <input
                       type="radio"
                       name={`automation-${m.id}`}
                       value={value}
+                      disabled={disabled}
                       checked={m.automation === value}
                       onChange={() => updateMachine(activeTab, { automation: value as MachineOption['automation'] })}
-                      className="accent-[#1B6FC8]"
+                      className="accent-[#1B6FC8] disabled:cursor-not-allowed"
                     />
                     <span className="text-sm font-medium text-gray-800">{label}</span>
                   </div>
                   <span className="text-xs text-gray-500 pl-5">{sub}</span>
                 </label>
-              ))}
+              )})}
             </div>
           </div>
 

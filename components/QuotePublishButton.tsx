@@ -1,18 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { recommendTemplate } from '@/lib/templateMatcher'
+import { suggestTemplate } from '@/lib/templateMatcher'
 import type { QuoteTemplate } from '@/lib/hubspot'
 import { HUBSPOT_PORTAL_ID } from '@/types'
 
 interface Props {
   quoteId: string
   machineModel: string
+  companyName?: string
   hubspotQuoteId?: string | null
   hubspotDealId: string
 }
 
-export default function QuotePublishButton({ quoteId, machineModel, hubspotQuoteId, hubspotDealId }: Props) {
+export default function QuotePublishButton({ quoteId, machineModel, companyName, hubspotQuoteId, hubspotDealId }: Props) {
   const [templates, setTemplates]           = useState<QuoteTemplate[]>([])
   const [templatesLoading, setTplLoading]   = useState(false)
   const [selectedTemplateId, setTemplateId] = useState('')
@@ -26,12 +27,12 @@ export default function QuotePublishButton({ quoteId, machineModel, hubspotQuote
       .then(data => {
         const list: QuoteTemplate[] = data.templates ?? []
         setTemplates(list)
-        const rec = recommendTemplate(machineModel, list)
+        const rec = suggestTemplate(machineModel, list, companyName)
         if (rec) setTemplateId(rec.id)
       })
       .catch(() => {})
       .finally(() => setTplLoading(false))
-  }, [machineModel])
+  }, [machineModel, companyName])
 
   async function handlePublish() {
     setPublishing(true)
@@ -52,7 +53,7 @@ export default function QuotePublishButton({ quoteId, machineModel, hubspotQuote
     }
   }
 
-  const recommendedId = recommendTemplate(machineModel, templates)?.id
+  const recommendedId = suggestTemplate(machineModel, templates, companyName)?.id
 
   return (
     <div className="cla-elevated p-5 space-y-3">

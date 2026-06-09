@@ -102,15 +102,16 @@ export function buildLineItems(config: QuoteConfig, sheetBasePrice?: number): Li
   let machineBase: number
   let laserPremium = 0
 
-  if (sheetBasePrice && sheetBasePrice > 0) {
-    // Price sheet already accounts for laser source and power — use as-is
+  if (sheetBasePrice != null && sheetBasePrice > 0) {
     machineBase = sheetBasePrice
-  } else {
-    // Rough fallback: midpoint of range × power multiplier
+  } else if (sheetBasePrice === undefined) {
+    // Rough fallback for dealer price-check estimates only (no exact sheet row passed)
     machineBase = (baseMin + (baseMax - baseMin) * 0.5) * powerMult
-    // Laser premium on top (sheet prices already bake this in)
     const laser = config.laser.toLowerCase()
     if (laser.includes('ipg')) laserPremium = machineBase * ADDONS.ipgPremium
+  } else {
+    // Explicit TBD / custom pricing (sheetBasePrice === 0 or null from formal quotes)
+    machineBase = 0
   }
 
   const items: LineItem[] = []

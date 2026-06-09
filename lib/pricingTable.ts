@@ -979,6 +979,18 @@ export const PRICE_TABLE: Record<string, { list: number; net: number }> = {
 }
 
 
+/** Exact Feb 2026 sheet row only — use for formal quotes (no nearest-kW fallback). */
+export function lookupExactPrice(
+  model: string,
+  laserSource: string,
+  kw: number
+): { list: number; net: number } | null {
+  const laser = normalizeLaser(laserSource)
+  const modelKey = normalizeModel(model)
+  return PRICE_TABLE[`${modelKey}|${laser}|${kw}`] ?? null
+}
+
+/** Nearest sheet row — dealer price-check neighbors only; not for saved quotes. */
 export function lookupPrice(
   model: string,
   laserSource: string,
@@ -1017,6 +1029,7 @@ export function normalizeModel(raw: string): string {
   // Named multi-word families — match before generic fallback
   const pbM = s.match(/PLUS\s+Bevel\s+(\d{4,5})/i); if (pbM) return `PLUS Bevel ${pbM[1]}`
   const peM = s.match(/PLUS\s+Evo\s+(\d{4,5})/i);   if (peM) return `PLUS Evo ${peM[1]}`
+  const fhdM = s.match(/\bFHD\s+(\d{4,5})\b/i);      if (fhdM) return `Fiber HD ${fhdM[1]}`
   const fhM = s.match(/Fiber\s+HD\s+(\d{4,5})/i);   if (fhM) return `Fiber HD ${fhM[1]}`
   const ftM = s.match(/Fiber\s+Tube\s+TL(\d+)/i);   if (ftM) return `Fiber Tube TL${ftM[1]}`
 

@@ -212,6 +212,7 @@ export default async function QuoteDetailPage({ params }: { params: { id: string
               <QuotePublishButton
                 quoteId={quote.id}
                 machineModel={quote.machineModel}
+                companyName={quote.company}
                 hubspotQuoteId={quote.hubspotQuoteId}
                 hubspotDealId={quote.hubspotDealId}
               />

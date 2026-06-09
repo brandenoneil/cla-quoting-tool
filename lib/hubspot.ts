@@ -550,19 +550,26 @@ export async function fetchQuoteTemplates(): Promise<QuoteTemplate[]> {
 
 // ─── NOTES ────────────────────────────────────────────────────────────────────
 
-export async function createTask(subject: string, body: string, priority: 'HIGH' | 'MEDIUM' | 'LOW' = 'HIGH') {
+export async function createTask(
+  subject: string,
+  body: string,
+  priority: 'HIGH' | 'MEDIUM' | 'LOW' = 'HIGH',
+  options?: { ownerId?: string; dueDate?: Date }
+) {
+  const properties: Record<string, string> = {
+    hs_task_subject: subject,
+    hs_task_body: body,
+    hs_task_priority: priority,
+    hs_task_status: 'NOT_STARTED',
+    hs_timestamp: Date.now().toString(),
+  }
+  if (options?.ownerId) properties.hubspot_owner_id = options.ownerId
+  if (options?.dueDate) properties.hs_timestamp = options.dueDate.getTime().toString()
+
   const res = await fetchWithRetry(`${BASE_URL}/crm/v3/objects/tasks`, {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify({
-      properties: {
-        hs_task_subject: subject,
-        hs_task_body: body,
-        hs_task_priority: priority,
-        hs_task_status: 'NOT_STARTED',
-        hs_timestamp: Date.now().toString(),
-      },
-    }),
+    body: JSON.stringify({ properties }),
   })
   if (!res.ok) throw new Error(`Failed to create task: ${await res.text()}`)
   return res.json()

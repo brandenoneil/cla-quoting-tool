@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     const templateId =
       quote.hubspotTemplateId ||
-      resolveTemplateId(quote.machineModel, templates)
+      resolveTemplateId(quote.machineModel, templates, null, quote.company)
 
     if (!hsQuoteId) {
       const hsQuote = await createHubSpotQuote({

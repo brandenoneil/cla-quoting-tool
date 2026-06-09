@@ -1,20 +1,15 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import {
-  createDeal,
-  createNote,
-  createTask,
-  associateObjects,
-  associateV3,
-  fetchQuoteTemplates,
-} from '@/lib/hubspot'
+import { createDeal, fetchQuoteTemplates } from '@/lib/hubspot'
+import { DEALER_PIPELINE_ID, getPrimarySalesOwnerId } from '@/lib/hubspotConfig'
+import { notifySalesTeamOfDealerQuote } from '@/lib/notifySalesTeam'
+import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
 import { pushQuoteDraftToHubSpot, resolveTemplateId } from '@/lib/pushHubSpotQuoteDraft'
 import { NextRequest } from 'next/server'
 import type { QuoteOption } from '@/types'
 
 const OPPORTUNITY_QUALIFIED_STAGE = '168290363'
-const PIPELINE_ID = '90932330'
 
 function generateQuoteNumber(): string {
   const year = new Date().getFullYear()
@@ -85,64 +80,24 @@ export async function POST(req: NextRequest) {
   const dealerCompany = (session.user as any)?.dealerCompany || ''
   const primaryOption = options[0]
   const dealName = `${formData.company} - ${primaryOption.machineModel}`
+  const primaryOwnerId = getPrimarySalesOwnerId()
 
-  // 1. Create HubSpot deal
   const hsDeal = await createDeal({
     dealname: dealName,
-    pipeline: PIPELINE_ID,
+    pipeline: DEALER_PIPELINE_ID,
     dealstage: OPPORTUNITY_QUALIFIED_STAGE,
     amount: String(Math.round(options.reduce((s, o) => s + o.totalPrice, 0) / options.length)),
+    ...(primaryOwnerId ? { hubspot_owner_id: primaryOwnerId } : {}),
+    ...(dealerCompany ? { dealer_company: dealerCompany } : {}),
   })
   const dealId = hsDeal.id
 
   await new Promise((r) => setTimeout(r, 150))
 
-  // 2. Create a note on the deal with dealer details
-  const noteBody = [
-    `Quote request submitted via dealer portal`,
-    `Dealer: ${dealerName} (${dealerEmail})${dealerCompany ? ` — ${dealerCompany}` : ''}`,
-    `Customer: ${formData.company} · ${formData.contactName} · ${formData.contactEmail}`,
-    `Machine(s): ${options.map(o => `${o.machineModel} ${o.machinePower} — ${o.name}`).join(', ')}`,
-    `Options: ${options.length} (${options.map(o => o.machineLabel).join(', ')})`,
-  ].join('\n')
-
-  const note = await createNote(noteBody)
-  await new Promise((r) => setTimeout(r, 100))
-
-  try {
-    await associateObjects('notes', note.id, 'deals', dealId, 214)
-  } catch {
-    try { await associateV3('notes', note.id, 'deals', dealId, 'note_to_deal') } catch {}
-  }
-
-  await new Promise((r) => setTimeout(r, 100))
-
-  // 3. Create an action task for the internal team
-  const taskSubject = `Review quote request: ${formData.company} — ${primaryOption.machineModel}`
-  const taskBody = [
-    `Dealer ${dealerName} submitted a quote request.`,
-    `Customer: ${formData.company} (${formData.contactName})`,
-    `Requested: ${options.map(o => `${o.machineLabel} ${o.machineModel} ${o.machinePower} = $${Math.round(o.totalPrice).toLocaleString()}`).join(' | ')}`,
-    `Open the deal to review and approve the generated quote.`,
-  ].join('\n')
-
-  const task = await createTask(taskSubject, taskBody, 'HIGH')
-  await new Promise((r) => setTimeout(r, 100))
-
-  try {
-    await associateObjects('tasks', task.id, 'deals', dealId, 216)
-  } catch {
-    try { await associateV3('tasks', task.id, 'deals', dealId, 'task_to_deal') } catch {}
-  }
-
-  await new Promise((r) => setTimeout(r, 100))
-
-  // 4. Save all quote options to DB
   const quotes = await Promise.all(
-    options.map(opt => saveOneOption(opt, formData, dealId, dealName, dealerEmail, dealerCompany))
+    options.map((opt) => saveOneOption(opt, formData, dealId, dealName, dealerEmail, dealerCompany))
   )
 
-  // 5. Push each quote to HubSpot with line items + matching quote template
   const hubspotDraftErrors: string[] = []
   const pushedDrafts: Array<{
     quoteId: string
@@ -160,7 +115,7 @@ export async function POST(req: NextRequest) {
 
   for (const q of quotes) {
     try {
-      const templateId = resolveTemplateId(q.machineModel, templates)
+      const templateId = resolveTemplateId(q.machineModel, templates, null, formData.company)
       if (!templateId && templates.length > 0) {
         hubspotDraftErrors.push(
           `${q.quoteNumber}: no HubSpot template matched "${q.machineModel}" — quote pushed without template`
@@ -182,33 +137,37 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 6. Add result note on the deal for internal visibility
-  const templateSummary = pushedDrafts
-    .map((p) => {
-      const tmpl = templates.find((t) => t.id === p.templateId)
-      return `${p.quoteNumber}${tmpl ? ` (${tmpl.name})` : ''}`
-    })
-    .join(', ')
-
-  const pushSummaryBody = [
-    `Dealer request quote push summary`,
-    `Draft quotes created in HubSpot: ${pushedDrafts.length}/${quotes.length}`,
-    templateSummary ? `Templates: ${templateSummary}` : '',
-    ...(hubspotDraftErrors.length ? [`Warnings: ${hubspotDraftErrors.join(' | ')}`] : []),
-  ]
-    .filter(Boolean)
-    .join('\n')
+  const alertOptions = options.map((o, i) => {
+    const kw = parseKw(o.machinePower)
+    const customPricing = !lookupExactPrice(o.machineModel, o.laserSource, kw)
+    const pushed = pushedDrafts.find((p) => p.quoteNumber === quotes[i]?.quoteNumber)
+    return {
+      machineLabel: o.machineLabel,
+      machineModel: o.machineModel,
+      machinePower: o.machinePower,
+      name: o.name,
+      totalPrice: o.totalPrice,
+      quoteNumber: quotes[i]?.quoteNumber ?? '',
+      hubspotQuoteId: pushed?.hubspotQuoteId ?? null,
+      customPricing,
+    }
+  })
 
   try {
-    const pushSummaryNote = await createNote(pushSummaryBody)
-    await new Promise((r) => setTimeout(r, 100))
-    try {
-      await associateObjects('notes', pushSummaryNote.id, 'deals', dealId, 214)
-    } catch {
-      try { await associateV3('notes', pushSummaryNote.id, 'deals', dealId, 'note_to_deal') } catch {}
-    }
+    await notifySalesTeamOfDealerQuote({
+      dealId,
+      dealName,
+      dealerName,
+      dealerEmail,
+      dealerCompany,
+      customerCompany: formData.company,
+      contactName: formData.contactName,
+      contactEmail: formData.contactEmail,
+      options: alertOptions,
+      hubspotDraftErrors,
+    })
   } catch {
-    // non-fatal
+    /* non-fatal */
   }
 
   return Response.json({

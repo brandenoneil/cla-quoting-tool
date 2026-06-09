@@ -38,6 +38,13 @@ API: `POST /api/dealer/price-check` (dealer role only). `GET /api/dealer/price-c
 
 Company autocomplete and deal flows use HubSpot’s API. Set **`HUBSPOT_PRIVATE_APP_TOKEN`** in `.env` / Vercel (private app with scopes to read **Companies** and **Contacts**, plus whatever you need for deals/quotes). If it is missing, the UI shows **“CRM search is unavailable”** instead of failing silently.
 
+### Dealer quote alerts (sales team)
+
+When a dealer submits a quote from the portal, the app creates HubSpot tasks for Jess Moon and John Quinn, adds a deal note, and sets **`quote_tool_status`** = `ready_for_review` so a HubSpot workflow can email both reps.
+
+1. Set **`SALES_ALERT_HUBSPOT_OWNER_IDS`** (see [`.env.example`](.env.example)) — defaults to Jess + John if unset.
+2. Run **`npm run hubspot:setup-alerts`** once (or follow [`docs/hubspot-dealer-alert-workflow.md`](docs/hubspot-dealer-alert-workflow.md)) to create deal properties and configure the workflow email.
+
 ## Getting Started
 
 First, run the development server:
@@ -111,6 +118,7 @@ For **local-only** development you can often set **both** to the **direct** URI 
    | `NEXTAUTH_SECRET` | e.g. `openssl rand -base64 32` |
    | `NEXTAUTH_URL` | Your canonical URL (`https://…vercel.app` or custom domain) |
    | `HUBSPOT_PRIVATE_APP_TOKEN` | **Required** for company search / HubSpot deal features (private app token) |
+   | `SALES_ALERT_HUBSPOT_OWNER_IDS` | Optional; Jess + John owner IDs for dealer submit alerts (see `.env.example`) |
    | `CLA_ANTHROPIC_KEY` | Optional |
    | `DEALER_EMBED_FRAME_ANCESTORS` | Optional; space-separated parent origins for iframe embed |
 

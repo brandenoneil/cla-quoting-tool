@@ -2,15 +2,23 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { lookupPrice, parseKw } from '@/lib/pricingTable'
+import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
+import { hasExactSheetRow } from '@/lib/priceCheckNeighbors'
 import {
   canonicalLaserSource,
   coerceBevelHeadForModel,
   coerceLaserSourceForModel,
+  coercePowerForModel,
+  getAllowedPowerLabels,
   LASER_SOURCE_LABELS,
   getAllowedBevelHeads,
   getAllowedLaserSources,
 } from '@/lib/machineConstraints'
+import {
+  coerceSmartOptionsForModel,
+  getAllowedSmartOptions,
+  isAutomationAllowed,
+} from '@/lib/productRules'
 import type { LineItem, MachineOption } from '@/types'
 
 interface QuoteData {
@@ -152,9 +160,10 @@ function autoCheckFromIntake(d: Record<string, any>): Partial<MachineOption> {
 // ─── Price sheet preview ──────────────────────────────────────────────────────
 function PricePreview({ model, power, laser }: { model: string; power: string; laser: string }) {
   const kw = parseKw(power)
-  const price = model ? lookupPrice(model, laser, kw) : null
+  const price = model ? lookupExactPrice(model, laser, kw) : null
+  const onSheet = model ? hasExactSheetRow(model, laser, kw) : false
   if (!model) return null
-  if (!price) {
+  if (!onSheet || !price) {
     return (
       <div className="mt-3 flex items-start gap-2.5 px-3 py-2.5 bg-amber-50 border border-amber-300 rounded-lg">
         <svg className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -168,17 +177,18 @@ function PricePreview({ model, power, laser }: { model: string; power: string; l
     )
   }
   return (
-    <div className="mt-3 flex items-center gap-6 px-4 py-2.5 bg-[#E6F1FB] rounded-lg border border-blue-200">
-      <div>
-        <p className="text-xs text-gray-500">Feb 2026 List</p>
-        <p className="text-base font-bold text-[#0A2E52]">{fmt(price.list)}</p>
-      </div>
-      <div className="border-l border-blue-200 pl-6">
-        <p className="text-xs text-gray-500">Net cost</p>
-        <p className="text-base font-bold text-[#1B6FC8]">{fmt(price.net)}</p>
-      </div>
+    <div className="mt-3 px-4 py-2.5 bg-[#E6F1FB] rounded-lg border border-blue-200">
+      <p className="text-xs text-gray-500">Feb 2026 list price (machine base)</p>
+      <p className="text-base font-bold text-[#0A2E52]">{fmt(price.list)}</p>
     </div>
   )
+}
+
+function coerceMachineFields(merged: MachineOption): MachineOption {
+  merged.laserSource = coerceLaserSourceForModel(merged.laserSource, merged.machineModel)
+  merged.machinePower = coercePowerForModel(merged.machinePower, merged.machineModel, merged.laserSource)
+  merged.bevelHead = coerceBevelHeadForModel(merged.bevelHead, merged.machineModel)
+  return { ...merged, ...coerceSmartOptionsForModel(merged) }
 }
 
 // ─── Checkbox option card ─────────────────────────────────────────────────────
@@ -248,11 +258,16 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
     setMachines(prev => {
       const next = [...prev]
       const merged = { ...next[idx], ...patch }
-      if (patch.machineModel !== undefined || patch.laserSource !== undefined || patch.bevelHead !== undefined) {
-        merged.laserSource = coerceLaserSourceForModel(merged.laserSource, merged.machineModel)
-        merged.bevelHead = coerceBevelHeadForModel(merged.bevelHead, merged.machineModel)
+      if (
+        patch.machineModel !== undefined ||
+        patch.laserSource !== undefined ||
+        patch.bevelHead !== undefined ||
+        patch.machinePower !== undefined
+      ) {
+        next[idx] = coerceMachineFields(merged)
+      } else {
+        next[idx] = merged
       }
-      next[idx] = merged
       return next
     })
   }
@@ -268,16 +283,16 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
     if (machines.length >= 3) return
     const source = machines[activeTab]
     const label = OPTION_LABELS[machines.length]
-    const fullyLoaded: MachineOption = {
+    const fullyLoaded = coerceMachineFields({
       ...source,
       id: `machine-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       label,
       smartMix: true, smartChanger: true, smartGrease: true,
       smartDoor: true, smartRaster: true, smartSetUp: true,
-      automation: 'With Tower',
+      automation: isAutomationAllowed(source.machineModel) ? 'With Tower' : 'None',
       pistonLift: true, ulCertification: true, cadCamSoftware: true, sideLoad: true,
       extendedWarranty: source.extendedWarranty.includes('3') ? source.extendedWarranty : '+3 Years ($45K)',
-    }
+    })
     setMachines(prev => [...prev, fullyLoaded])
     setActiveTab(machines.length)
   }
@@ -406,6 +421,10 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
   const m = machines[activeTab]
   const allowedLasers = getAllowedLaserSources(m.machineModel)
   const allowedBevels = getAllowedBevelHeads(m.machineModel)
+  const sheetPowers = getAllowedPowerLabels(m.machineModel, m.laserSource)
+  const powerOptions = sheetPowers.length > 0 ? sheetPowers : POWER_OPTIONS
+  const allowedSmart = getAllowedSmartOptions(m.machineModel)
+  const automationAllowed = isAutomationAllowed(m.machineModel)
 
   return (
     <div className="space-y-8">
@@ -581,7 +600,7 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
                   onChange={e => updateMachine(activeTab, { machinePower: e.target.value })}
                   className={inputCls}
                 >
-                  {POWER_OPTIONS.map(p => <option key={p}>{p}</option>)}
+                  {powerOptions.map(p => <option key={p}>{p}</option>)}
                 </select>
               </div>
 
@@ -672,6 +691,7 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
                   checked={m[key as keyof MachineOption] as boolean}
                   label={label}
                   sub={sub}
+                  disabled={!allowedSmart[key as keyof typeof allowedSmart]}
                   onChange={v => updateMachine(activeTab, { [key]: v })}
                 />
               ))}
@@ -681,30 +701,38 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
           {/* Automation */}
           <div>
             <p className={sectionHead}>Automation</p>
+            {!automationAllowed && (
+              <p className="text-xs text-amber-700 mb-2">Load/unload automation is not available for this machine family.</p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { value: 'None',            label: 'None',                sub: 'No automation' },
                 { value: 'Inline No Tower', label: 'Inline',              sub: 'Inline, no tower' },
                 { value: 'No Tower',        label: 'Load/Unload',         sub: 'SMART Flow, no tower' },
                 { value: 'With Tower',      label: 'Load/Unload + Tower', sub: 'SMART Flow 90° tower' },
-              ].map(({ value, label, sub }) => (
-                <label key={value} className={`flex flex-col gap-0.5 cursor-pointer border rounded-lg px-3 py-2.5 transition-colors ${
-                  m.automation === value ? 'border-[#1B6FC8] bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              ].map(({ value, label, sub }) => {
+                const disabled = value !== 'None' && !automationAllowed
+                return (
+                <label key={value} className={`flex flex-col gap-0.5 border rounded-lg px-3 py-2.5 transition-colors ${
+                  disabled ? 'cursor-not-allowed opacity-45 border-gray-100 bg-gray-50' :
+                  m.automation === value ? 'border-[#1B6FC8] bg-blue-50 cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer'
                 }`}>
                   <div className="flex items-center gap-2">
                     <input
                       type="radio"
                       name={`automation-${m.id}`}
                       value={value}
+                      disabled={disabled}
                       checked={m.automation === value}
                       onChange={() => updateMachine(activeTab, { automation: value as MachineOption['automation'] })}
-                      className="accent-[#1B6FC8]"
+                      className="accent-[#1B6FC8] disabled:cursor-not-allowed"
                     />
-                    <span className="text-sm font-medium text-gray-800">{label}</span>
+                    <span className={`text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-800'}`}>{label}</span>
                   </div>
-                  <span className="text-xs text-gray-500 pl-5">{sub}</span>
+                  <span className={`text-xs pl-5 ${disabled ? 'text-gray-300' : 'text-gray-500'}`}>{sub}</span>
                 </label>
-              ))}
+                )
+              })}
             </div>
           </div>
 

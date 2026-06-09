@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getClosedWonDealsByModel } from '@/lib/hubspot'
-import { lookupPrice, normalizeModel, normalizeLaser, parseKw } from '@/lib/pricingTable'
+import { lookupExactPrice, normalizeModel, normalizeLaser, parseKw } from '@/lib/pricingTable'
 import { NextRequest } from 'next/server'
 
 export async function GET(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const modelKey = normalizeModel(model)
 
   // 1. Current price from the Feb 2026 sheet
-  const sheetPrice = lookupPrice(model, laser, kw)
+  const sheetPrice = lookupExactPrice(model, laser, kw)
 
   // 2. Historical closed-won averages — search by short model keyword
   // Use the format portion (e.g. "4020" from "FAST 4020") as the search token
@@ -44,9 +44,7 @@ export async function GET(req: NextRequest) {
     model: modelKey,
     laser: normalizeLaser(laser),
     kw,
-    currentPrice: sheetPrice
-      ? { list: sheetPrice.list, net: sheetPrice.net }
-      : null,
+    currentPrice: sheetPrice ? { list: sheetPrice.list } : null,
     historical: {
       avg: historicalAvg,
       count: historicalCount,

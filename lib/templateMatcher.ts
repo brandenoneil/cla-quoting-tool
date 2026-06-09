@@ -55,6 +55,45 @@ function detectFamily(machineModel: string): string[] {
   return []
 }
 
+/** Customer-specific template name keywords (company or deal name). */
+const COMPANY_TEMPLATE_KEYWORDS: { patterns: RegExp[]; keywords: string[] }[] = [
+  { patterns: [/fanello/i], keywords: ['fanello'] },
+  { patterns: [/ryerson/i], keywords: ['ryerson'] },
+]
+
+function detectCompanyKeywords(companyName: string, dealName?: string): string[] {
+  const hay = `${companyName} ${dealName ?? ''}`
+  const out: string[] = []
+  for (const entry of COMPANY_TEMPLATE_KEYWORDS) {
+    if (entry.patterns.some((p) => p.test(hay))) out.push(...entry.keywords)
+  }
+  return out
+}
+
+function findTemplateByKeywords(keywords: string[], templates: QuoteTemplate[]): QuoteTemplate | null {
+  for (const kw of keywords) {
+    const match = templates.find((t) => t.name.toLowerCase().includes(kw.toLowerCase()))
+    if (match) return match
+  }
+  return null
+}
+
+/**
+ * Suggest template from company/deal name first, then machine family.
+ */
+export function suggestTemplate(
+  machineModel: string,
+  templates: QuoteTemplate[],
+  companyName?: string,
+  dealName?: string
+): QuoteTemplate | null {
+  if (templates.length === 0) return null
+  const companyKw = detectCompanyKeywords(companyName ?? '', dealName)
+  const companyMatch = findTemplateByKeywords(companyKw, templates)
+  if (companyMatch) return companyMatch
+  return recommendTemplate(machineModel, templates)
+}
+
 /**
  * Given a machine model string and a list of HubSpot quote templates,
  * returns the best-matching template (or null if none found).
@@ -66,17 +105,7 @@ export function recommendTemplate(
   if (!machineModel || templates.length === 0) return null
 
   const keywords = detectFamily(machineModel)
-
-  // First pass: find a template whose name contains any keyword (case-insensitive)
-  for (const kw of keywords) {
-    const match = templates.find((t) =>
-      t.name.toLowerCase().includes(kw.toLowerCase())
-    )
-    if (match) return match
-  }
-
-  // Fallback: no family match — return the first template (if any)
-  return null
+  return findTemplateByKeywords(keywords, templates)
 }
 
 /**
