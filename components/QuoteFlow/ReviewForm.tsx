@@ -1,8 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import MachineCatalogFields from '@/components/MachineCatalogFields'
 import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
 import { hasExactSheetRow } from '@/lib/priceCheckNeighbors'
+import type { PriceCheckMachineOptionEnriched } from '@/lib/priceCheckClient'
+import { resolveSheetModel } from '@/lib/priceCheckClient'
+import {
+  constrainCatalogSelection,
+  inferCatalogSelection,
+  matchModelToCatalog,
+  pickDefaultSize,
+  type CatalogSelectionDraft,
+} from '@/lib/priceCheckFormHelpers'
 import { getReviewPricingWarnings, type PricingWarning } from '@/lib/sheetPricingWarnings'
 import {
   canonicalLaserSource,
@@ -210,12 +220,40 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
     buildMachinesFromIntake(intakeData, initialData)
   )
   const [activeTab, setActiveTab] = useState(0)
+  const [priceCheckCatalog, setPriceCheckCatalog] = useState<PriceCheckMachineOptionEnriched[]>([])
+  const [customModelById, setCustomModelById] = useState<Record<string, boolean>>({})
 
   // Keep machines in sync if intakeData arrives after mount (streaming)
   useEffect(() => {
     if (Object.keys(intakeData).length === 0) return
     setMachines(buildMachinesFromIntake(intakeData, {}))
   }, [JSON.stringify(intakeData)])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/price-check/catalog')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.machines) setPriceCheckCatalog(data.machines)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!priceCheckCatalog.length) return
+    setCustomModelById((prev) => {
+      const next = { ...prev }
+      for (const machine of machines) {
+        if (next[machine.id] !== undefined) continue
+        next[machine.id] =
+          !!machine.machineModel.trim() && !matchModelToCatalog(machine.machineModel, priceCheckCatalog)
+      }
+      return next
+    })
+  }, [priceCheckCatalog, machines])
 
   // ── Machine helpers ─────────────────────────────────────────────────────────
   function updateMachine(idx: number, patch: Partial<MachineOption>) {
@@ -226,6 +264,25 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
       return next
     })
   }
+
+  const applyCatalogSelection = useCallback(
+    (idx: number, draft: CatalogSelectionDraft) => {
+      if (!priceCheckCatalog.length) return
+      const constrained = constrainCatalogSelection(priceCheckCatalog, draft)
+      const machineModel = resolveSheetModel(
+        priceCheckCatalog,
+        constrained.familyId,
+        constrained.sizeCode
+      )
+      updateMachine(idx, {
+        machineModel,
+        machinePower: constrained.machinePower,
+        laserSource: constrained.laserSource,
+        bevelHead: constrained.bevelHead,
+      })
+    },
+    [priceCheckCatalog]
+  )
 
   function addMachine() {
     if (machines.length >= 3) return
@@ -368,6 +425,21 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
     [m.machineModel, m.machinePower, m.laserSource]
   )
   const powerPricingWarning = pricingWarnings.find((w) => w.field === 'power')
+  const useCatalogPicker =
+    priceCheckCatalog.length > 0 && !customModelById[m.id]
+  const catalogDraft = useMemo(
+    () =>
+      priceCheckCatalog.length
+        ? inferCatalogSelection(
+            m.machineModel,
+            m.machinePower,
+            m.laserSource,
+            m.bevelHead,
+            priceCheckCatalog
+          )
+        : null,
+    [m.machineModel, m.machinePower, m.laserSource, m.bevelHead, priceCheckCatalog]
+  )
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -542,34 +614,88 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
           <div>
             <p className={sectionHeadCls}>Machine Basics</p>
             <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <label className={labelCls}>Machine Model *</label>
-                <input
-                  required
-                  type="text"
-                  value={m.machineModel}
-                  onChange={(e) => updateMachine(activeTab, { machineModel: e.target.value })}
-                  className={inputCls}
-                  placeholder="e.g. FIBER Fast 4020, FIBER HD 16030, PLUS Bevel 6525"
-                />
-                {!isDealer && <PricePreview model={m.machineModel} power={m.machinePower} laser={m.laserSource} />}
-              </div>
+              {useCatalogPicker && catalogDraft ? (
+                <div className="col-span-2 space-y-3">
+                  <MachineCatalogFields
+                    catalog={priceCheckCatalog}
+                    familyId={catalogDraft.familyId}
+                    sizeCode={catalogDraft.sizeCode}
+                    machinePower={catalogDraft.machinePower}
+                    laserSource={m.laserSource}
+                    onFamilyChange={(familyId) => {
+                      const machine = priceCheckCatalog.find((entry) => entry.id === familyId)
+                      applyCatalogSelection(activeTab, {
+                        ...catalogDraft,
+                        familyId,
+                        sizeCode: pickDefaultSize(machine),
+                      })
+                    }}
+                    onSizeChange={(sizeCode) =>
+                      applyCatalogSelection(activeTab, { ...catalogDraft, sizeCode })
+                    }
+                    onPowerChange={(machinePower) =>
+                      applyCatalogSelection(activeTab, { ...catalogDraft, machinePower })
+                    }
+                  />
+                  {!isDealer && (
+                    <PricePreview model={m.machineModel} power={m.machinePower} laser={m.laserSource} />
+                  )}
+                  {powerPricingWarning && (
+                    <p className="text-xs text-amber-700">{powerPricingWarning.message}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setCustomModelById((prev) => ({ ...prev, [m.id]: true }))}
+                    className="text-xs text-gray-500 hover:text-[#1B6FC8] underline"
+                  >
+                    Enter model manually
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="col-span-2">
+                    <label className={labelCls}>Machine Model *</label>
+                    <input
+                      required
+                      type="text"
+                      value={m.machineModel}
+                      onChange={(e) => updateMachine(activeTab, { machineModel: e.target.value })}
+                      className={inputCls}
+                      placeholder="e.g. FIBER Fast 4020, FIBER HD 16030, PLUS Bevel 6525"
+                    />
+                    {!isDealer && (
+                      <PricePreview model={m.machineModel} power={m.machinePower} laser={m.laserSource} />
+                    )}
+                    {priceCheckCatalog.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomModelById((prev) => ({ ...prev, [m.id]: false }))}
+                        className="mt-2 text-xs text-gray-500 hover:text-[#1B6FC8] underline"
+                      >
+                        Use catalog picker
+                      </button>
+                    )}
+                  </div>
 
-              <div>
-                <label className={labelCls}>Power Rating</label>
-                <select
-                  value={m.machinePower}
-                  onChange={(e) => updateMachine(activeTab, { machinePower: e.target.value })}
-                  className={`${inputCls}${powerPricingWarning ? ' border-amber-400 ring-1 ring-amber-200' : ''}`}
-                >
-                  {powerSelectOptions.map((p) => <option key={p}>{p}</option>)}
-                </select>
-                {powerPricingWarning && (
-                  <p className="text-xs text-amber-700 mt-1.5">{powerPricingWarning.message}</p>
-                )}
-              </div>
+                  <div>
+                    <label className={labelCls}>Power Rating</label>
+                    <select
+                      value={m.machinePower}
+                      onChange={(e) => updateMachine(activeTab, { machinePower: e.target.value })}
+                      className={`${inputCls}${powerPricingWarning ? ' border-amber-400 ring-1 ring-amber-200' : ''}`}
+                    >
+                      {powerSelectOptions.map((p) => (
+                        <option key={p}>{p}</option>
+                      ))}
+                    </select>
+                    {powerPricingWarning && (
+                      <p className="text-xs text-amber-700 mt-1.5">{powerPricingWarning.message}</p>
+                    )}
+                  </div>
+                </>
+              )}
 
-              <div>
+              <div className={useCatalogPicker ? 'col-span-2' : ''}>
                 <label className={labelCls}>Laser Source</label>
                 <div className="flex gap-2 flex-wrap pt-1">
                   {LASER_SOURCE_LABELS.map((laser) => {
@@ -587,7 +713,13 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
                           value={laser}
                           disabled={laserDisabled}
                           checked={m.laserSource === laser}
-                          onChange={() => updateMachine(activeTab, { laserSource: laser })}
+                          onChange={() => {
+                            if (useCatalogPicker && catalogDraft) {
+                              applyCatalogSelection(activeTab, { ...catalogDraft, laserSource: laser })
+                            } else {
+                              updateMachine(activeTab, { laserSource: laser })
+                            }
+                          }}
                           className="accent-[#1B6FC8] disabled:cursor-not-allowed"
                         />
                         <span className={`text-sm ${laserDisabled ? 'text-gray-400' : 'text-gray-700'}`}>

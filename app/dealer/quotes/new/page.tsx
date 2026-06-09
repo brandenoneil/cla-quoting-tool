@@ -1,7 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  clearPriceCheckPrefill,
+  loadPriceCheckPrefill,
+  priceCheckPrefillToIntake,
+} from '@/lib/priceCheckPrefill'
 import StepIndicator from '@/components/StepIndicator'
 import DealerBrandHeader from '@/components/DealerBrandHeader'
 import DealerCustomerForm from '@/components/QuoteFlow/DealerCustomerForm'
@@ -45,10 +50,25 @@ export default function DealerNewQuotePage() {
   const [submittedQuotes, setSubmittedQuotes] = useState<SubmittedQuote[]>([])
   const [submitError, setSubmitError]   = useState('')
   const [submitWarning, setSubmitWarning] = useState('')
+  const [fromPriceCheck, setFromPriceCheck] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    setFromPriceCheck(params.get('from') === 'price-check' || !!loadPriceCheckPrefill())
+  }, [])
 
   // ─── Step 1: Customer info ───────────────────────────────────────────────────
   function handleCustomerInfo(info: any) {
     setCustomerInfo(info)
+    const prefill = loadPriceCheckPrefill()
+    if (prefill) {
+      setIntakeData(priceCheckPrefillToIntake(prefill))
+      clearPriceCheckPrefill()
+      setFromPriceCheck(false)
+      setStep(3)
+      return
+    }
     setStep(2)
   }
 
@@ -176,7 +196,17 @@ export default function DealerNewQuotePage() {
 
         <div className="cla-elevated p-6 md:p-9 animate-cla-rise">
           {/* ── Step 1 ── */}
-          {step === 1 && <DealerCustomerForm onContinue={handleCustomerInfo} />}
+          {step === 1 && (
+            <>
+              {fromPriceCheck && (
+                <div className="mb-6 rounded-lg border border-[#1B6FC8]/25 bg-[#E6F1FB] px-4 py-3 text-sm text-[#0A2E52]">
+                  Your machine configuration from the price check will load on the review step after you enter
+                  customer details.
+                </div>
+              )}
+              <DealerCustomerForm onContinue={handleCustomerInfo} />
+            </>
+          )}
 
           {/* ── Step 2 ── */}
           {step === 2 && (

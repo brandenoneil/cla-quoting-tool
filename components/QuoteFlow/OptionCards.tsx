@@ -47,6 +47,11 @@ function fmt(n: number) {
   return '$' + Math.round(n).toLocaleString('en-US')
 }
 
+function isCustomPricingOption(option: QuoteOption): boolean {
+  if (option.notes?.toLowerCase().includes('custom pricing')) return true
+  return option.machineBasePrice === 0
+}
+
 function delta(a: number, b: number) {
   const diff = a - b
   const pct = ((diff / b) * 100).toFixed(1)
@@ -198,9 +203,13 @@ export default function OptionCards({ options, selectedLabels, onToggle, onConti
                 )}
               </div>
 
-              {/* Price block */}
+              {/* Price block — hidden for custom/TBD configurations */}
               <div className="px-5 py-4 border-b border-gray-100">
-                {isDealer ? (
+                {isCustomPricingOption(option) ? (
+                  <p className="text-sm text-amber-800">
+                    No current pricing for this configuration. The CLA team will fill in pricing on a customized quote.
+                  </p>
+                ) : isDealer ? (
                   <>
                     <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">Estimated Range</p>
                     <p className="text-2xl font-black text-[#0A2E52]">

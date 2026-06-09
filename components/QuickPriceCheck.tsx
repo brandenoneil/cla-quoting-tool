@@ -1,19 +1,21 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import DealerBrandHeader from '@/components/DealerBrandHeader'
-import type {
-  PriceCheckMachineOptionEnriched,
-  PriceCheckSizeOptionEnriched,
-} from '@/lib/priceCheckClient'
+import MachineCatalogFields from '@/components/MachineCatalogFields'
+import type { PriceCheckMachineOptionEnriched } from '@/lib/priceCheckClient'
+import { resolveSheetModel, tableSizeLabelFromSheetModel } from '@/lib/priceCheckClient'
 import {
-  defaultMachineSelection,
-  resolveSheetModel,
-  tableSizeLabelFromSheetModel,
-} from '@/lib/priceCheckClient'
-import type { MachineOption } from '@/types'
+  BEVEL_UI_FALLBACK,
+  constrainCatalogSelection,
+  initialPriceCheckForm,
+  LASER_FALLBACK,
+  pickDefaultSize,
+  type CatalogSelectionDraft,
+} from '@/lib/priceCheckFormHelpers'
+import { savePriceCheckPrefill } from '@/lib/priceCheckPrefill'
 import {
-  coerceBevelForModel,
   getBevelUiOptions,
   type BevelChoice,
 } from '@/lib/machineConstraints'
@@ -40,207 +42,8 @@ interface ApiResponse {
   up: PriceCheckSlot | null
 }
 
-const LASER_FALLBACK = ['IPG', 'Raycus'] as const
-const BEVEL_UI_FALLBACK: BevelChoice[] = ['No', 'Yes']
-const POWER_FALLBACK = ['3kW', '6kW', '10kW', '12kW', '15kW', '20kW', '25kW', '30kW', '40kW', '50kW', '60kW']
-
-function parseKwLabel(power: string): number {
-  const m = power.match(/(\d+)/)
-  return m ? parseInt(m[1], 10) : 6
-}
-
-function pickDefaultSize(machine: PriceCheckMachineOptionEnriched | undefined): string {
-  if (!machine?.sizes.length) return ''
-  const prefer4020 = machine.sizes.find((s) => s.code === '4020')
-  return prefer4020?.code ?? machine.sizes[0].code
-}
-
-function snapPower(kws: number[], current: string): string {
-  if (!kws.length) return current
-  const cur = parseKwLabel(current)
-  if (kws.includes(cur)) return `${cur}kW`
-  let pick = kws[0]!
-  let best = Infinity
-  for (const k of kws) {
-    const d = Math.abs(k - cur)
-    if (d < best) {
-      best = d
-      pick = k
-    }
-  }
-  return `${pick}kW`
-}
-
-function constrain(
-  catalog: PriceCheckMachineOptionEnriched[],
-  draft: {
-    familyId: string
-    sizeCode: string
-    laserSource: string
-    bevelHead: MachineOption['bevelHead']
-    machinePower: string
-  }
-) {
-  const machine = catalog.find((m) => m.id === draft.familyId)
-  const size = machine?.sizes.find((s) => s.code === draft.sizeCode)
-  if (!size) return draft
-
-  const laser = size.allowedLasers.includes(draft.laserSource)
-    ? draft.laserSource
-    : size.allowedLasers[0] ?? 'IPG'
-  const bevel = coerceBevelForModel(draft.bevelHead, size.sheetModel)
-  const kws = size.kwByLaser[laser] ?? []
-  const machinePower = kws.length ? snapPower(kws, draft.machinePower) : draft.machinePower
-
-  return { ...draft, laserSource: laser, bevelHead: bevel, machinePower }
-}
-
-function initialForm(catalog: PriceCheckMachineOptionEnriched[]) {
-  const d = defaultMachineSelection(catalog)
-  return constrain(catalog, {
-    familyId: d.familyId,
-    sizeCode: d.sizeCode,
-    laserSource: 'IPG',
-    bevelHead: 'No',
-    machinePower: '20kW',
-  })
-}
-
 function fmtUsd(n: number) {
   return '$' + Math.round(n).toLocaleString('en-US')
-}
-
-/** Snap-to-step slider across sheet table sizes for the selected machine line. */
-function TableSizeSlider({
-  sizes,
-  valueCode,
-  disabled,
-  onChange,
-}: {
-  sizes: PriceCheckSizeOptionEnriched[]
-  valueCode: string
-  disabled?: boolean
-  onChange: (code: string) => void
-}) {
-  const index = Math.max(
-    0,
-    sizes.findIndex((s) => s.code === valueCode)
-  )
-  const current = sizes[index] ?? sizes[0]
-
-  if (!sizes.length) {
-    return <p className="text-sm text-gray-400 py-2">No table sizes on the sheet for this line.</p>
-  }
-
-  if (sizes.length === 1 && current) {
-    return (
-      <p className="text-sm font-semibold text-[#0A2E52] py-1">
-        {current.feetLabel ? `${current.label} (${current.feetLabel})` : current.label}
-      </p>
-    )
-  }
-
-  return (
-    <div className="space-y-3 pt-0.5">
-      <div className="flex justify-between items-baseline gap-3">
-        <p className="text-sm font-semibold text-[#0A2E52] leading-snug">
-          {current?.feetLabel ? `${current.label} (${current.feetLabel})` : current?.label}
-        </p>
-        <span className="text-xs text-gray-500 tabular-nums shrink-0">
-          {index + 1} / {sizes.length}
-        </span>
-      </div>
-
-      <input
-        type="range"
-        className="table-size-slider w-full h-2 rounded-full appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-gray-200 accent-[#1B6FC8]"
-        min={0}
-        max={sizes.length - 1}
-        step={1}
-        value={index}
-        disabled={disabled}
-        aria-valuemin={0}
-        aria-valuemax={sizes.length - 1}
-        aria-valuenow={index}
-        aria-valuetext={current?.label ?? ''}
-        onChange={(e) => {
-          const i = parseInt(e.target.value, 10)
-          const next = sizes[i]
-          if (next) onChange(next.code)
-        }}
-      />
-
-      <div className="flex justify-between gap-2 text-[10px] text-gray-400 leading-tight">
-        <span className="max-w-[45%] truncate" title={sizes[0]?.label}>
-          {sizes[0]?.feetLabel ? `${sizes[0].label}` : sizes[0]?.label}
-        </span>
-        <span className="max-w-[45%] truncate text-right" title={sizes[sizes.length - 1]?.label}>
-          {sizes[sizes.length - 1]?.feetLabel
-            ? `${sizes[sizes.length - 1]!.label}`
-            : sizes[sizes.length - 1]?.label}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-/** Snap-to-step slider across sheet kW options for the selected model + laser. */
-function PowerSlider({
-  options,
-  value,
-  disabled,
-  onChange,
-}: {
-  options: string[]
-  value: string
-  disabled?: boolean
-  onChange: (power: string) => void
-}) {
-  const index = Math.max(0, options.findIndex((p) => p === value))
-  const current = options[index] ?? options[0]
-
-  if (!options.length) {
-    return <p className="text-sm text-gray-400 py-2">No power options on the sheet for this configuration.</p>
-  }
-
-  if (options.length === 1 && current) {
-    return <p className="text-sm font-semibold text-[#0A2E52] py-1">{current}</p>
-  }
-
-  return (
-    <div className="space-y-3 pt-0.5">
-      <div className="flex justify-between items-baseline gap-3">
-        <p className="text-sm font-semibold text-[#0A2E52] leading-snug">{current}</p>
-        <span className="text-xs text-gray-500 tabular-nums shrink-0">
-          {index + 1} / {options.length}
-        </span>
-      </div>
-
-      <input
-        type="range"
-        className="table-size-slider w-full h-2 rounded-full appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-gray-200 accent-[#1B6FC8]"
-        min={0}
-        max={options.length - 1}
-        step={1}
-        value={index}
-        disabled={disabled}
-        aria-valuemin={0}
-        aria-valuemax={options.length - 1}
-        aria-valuenow={index}
-        aria-valuetext={current ?? ''}
-        onChange={(e) => {
-          const i = parseInt(e.target.value, 10)
-          const next = options[i]
-          if (next) onChange(next)
-        }}
-      />
-
-      <div className="flex justify-between gap-2 text-[10px] text-gray-400 leading-tight">
-        <span>{options[0]}</span>
-        <span>{options[options.length - 1]}</span>
-      </div>
-    </div>
-  )
 }
 
 function modelFamilyName(model: string): string {
@@ -396,10 +199,11 @@ interface Props {
 }
 
 export default function QuickPriceCheck({ catalog, embed = false, user }: Props) {
-  const [form, setForm] = useState(() => initialForm(catalog))
+  const router = useRouter()
+  const [form, setForm] = useState<CatalogSelectionDraft>(() => initialPriceCheckForm(catalog))
 
   useEffect(() => {
-    if (catalog.length > 0) setForm(initialForm(catalog))
+    if (catalog.length > 0) setForm(initialPriceCheckForm(catalog))
   }, [catalog])
   const [neighborMode, setNeighborMode] = useState<NeighborMode>('format')
   const [result, setResult] = useState<ApiResponse | null>(null)
@@ -415,7 +219,7 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
 
   const selectedMachine = useMemo(() => catalog.find((m) => m.id === familyId), [catalog, familyId])
 
-  const selectedSize: PriceCheckSizeOptionEnriched | undefined = useMemo(
+  const selectedSize = useMemo(
     () => selectedMachine?.sizes.find((s) => s.code === sizeCode),
     [selectedMachine, sizeCode]
   )
@@ -425,20 +229,26 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
   const bevelUiChoices = BEVEL_UI_FALLBACK.filter(
     (v) => !(v === 'Yes' ? bevelUiOptions.yesDisabled : bevelUiOptions.noDisabled)
   )
-  const powerChoices = useMemo(() => {
-    const kws = selectedSize?.kwByLaser[laserSource] ?? []
-    if (kws.length) return kws.map((k) => `${k}kW`)
-    return [...POWER_FALLBACK]
-  }, [selectedSize, laserSource])
 
   const setFamily = (id: string) => {
     const machine = catalog.find((m) => m.id === id)
     const nextSize = pickDefaultSize(machine)
-    setForm((prev) => constrain(catalog, { ...prev, familyId: id, sizeCode: nextSize }))
+    setForm((prev) => constrainCatalogSelection(catalog, { ...prev, familyId: id, sizeCode: nextSize }))
   }
 
   const setSize = (code: string) => {
-    setForm((prev) => constrain(catalog, { ...prev, sizeCode: code }))
+    setForm((prev) => constrainCatalogSelection(catalog, { ...prev, sizeCode: code }))
+  }
+
+  function handleStartQuote() {
+    if (!machineModel) return
+    savePriceCheckPrefill({
+      machineModel,
+      machinePower,
+      laserSource,
+      bevelHead,
+    })
+    router.push('/dealer/quotes/new?from=price-check')
   }
 
   const runCheck = useCallback(async () => {
@@ -494,15 +304,11 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
     )
   }
 
-  const familyValue = catalog.some((m) => m.id === familyId) ? familyId : catalog[0]!.id
-  const sizes = selectedMachine?.sizes ?? []
-  const sizeValue = sizes.some((s) => s.code === sizeCode) ? sizeCode : sizes[0]?.code ?? ''
   const laserValue = laserChoices.includes(laserSource) ? laserSource : laserChoices[0] ?? 'IPG'
   const bevelUiValue = bevelHead
   const bevelUiSelectValue = bevelUiChoices.includes(bevelUiValue)
     ? bevelUiValue
     : bevelUiChoices[0] ?? 'No'
-  const powerValue = powerChoices.includes(machinePower) ? machinePower : powerChoices[0] ?? '20kW'
 
   return (
     <div className="cla-page-canvas min-h-screen">
@@ -518,46 +324,19 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
         </header>
 
         <section className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 space-y-6">
-          <label className="block space-y-1">
-            <span className="text-xs font-medium text-gray-600">Machine line</span>
-            <select
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white text-[#0A2E52]"
-              value={familyValue}
-              onChange={(e) => setFamily(e.target.value)}
-            >
-              {catalog.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="block space-y-1">
-              <span className="text-xs font-medium text-gray-600">Table size</span>
-              <div className="rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3 min-h-[88px]">
-                <TableSizeSlider
-                  sizes={sizes}
-                  valueCode={sizeValue}
-                  disabled={!sizes.length}
-                  onChange={setSize}
-                />
-              </div>
-            </div>
-
-            <div className="block space-y-1">
-              <span className="text-xs font-medium text-gray-600">Power</span>
-              <div className="rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3 min-h-[88px]">
-                <PowerSlider
-                  options={powerChoices}
-                  value={powerValue}
-                  disabled={!machineModel || !powerChoices.length}
-                  onChange={(power) => setForm((prev) => constrain(catalog, { ...prev, machinePower: power }))}
-                />
-              </div>
-            </div>
-          </div>
+          <MachineCatalogFields
+            catalog={catalog}
+            familyId={familyId}
+            sizeCode={sizeCode}
+            machinePower={machinePower}
+            laserSource={laserValue}
+            onFamilyChange={setFamily}
+            onSizeChange={setSize}
+            onPowerChange={(power) =>
+              setForm((prev) => constrainCatalogSelection(catalog, { ...prev, machinePower: power }))
+            }
+            showResolvedModel={false}
+          />
 
           <fieldset disabled={!machineModel} className="grid sm:grid-cols-2 gap-4 min-w-0">
             <label className="block space-y-1 min-w-0">
@@ -566,7 +345,7 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white text-[#0A2E52]"
                 value={laserValue}
                 onChange={(e) =>
-                  setForm((prev) => constrain(catalog, { ...prev, laserSource: e.target.value }))
+                  setForm((prev) => constrainCatalogSelection(catalog, { ...prev, laserSource: e.target.value }))
                 }
               >
                 {laserChoices.map((l) => (
@@ -584,7 +363,7 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
                 value={bevelUiSelectValue}
                 onChange={(e) =>
                   setForm((prev) =>
-                    constrain(catalog, {
+                    constrainCatalogSelection(catalog, {
                       ...prev,
                       bevelHead: e.target.value as BevelChoice,
                     })
@@ -653,6 +432,16 @@ export default function QuickPriceCheck({ catalog, embed = false, user }: Props)
                   neighborMode={result.mode}
                   targetSlot={result.target}
                 />
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleStartQuote}
+                  className="cla-btn-primary px-6 py-3 text-sm w-full sm:w-auto"
+                >
+                  Start quote request with this configuration →
+                </button>
               </div>
             </>
           )}
