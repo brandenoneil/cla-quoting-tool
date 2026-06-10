@@ -204,11 +204,26 @@ export default async function QuoteDetailPage({ params }: { params: { id: string
               <p className="text-xs text-brand-text-muted mt-1">{quote.tier} · {quote.packageName}</p>
             </div>
 
-            {(quote.status === 'PENDING_APPROVAL' || quote.status === 'REVIEWING') ? (
+            {(quote.status === 'PENDING_APPROVAL' || quote.status === 'REVIEWING') && !quote.hubspotQuoteId ? (
               <ApproveQuoteButton
                 quoteId={quote.id}
                 dealerEmail={(quote as any).submittedByDealer}
               />
+            ) : quote.hubspotQuoteId && !isPendingHubSpotDealId(quote.hubspotDealId) ? (
+              <div className="cla-elevated p-5 border-[#1B6FC8]/20 bg-gradient-to-br from-blue-50/90 to-white">
+                <p className="text-sm font-semibold text-[#0A2E52]">In HubSpot</p>
+                <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                  This quote is on the deal in HubSpot. Open the deal to review the draft and send to the customer.
+                </p>
+                <a
+                  href={`https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/record/0-3/${quote.hubspotDealId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-3 text-xs font-semibold text-[#1B6FC8] hover:underline"
+                >
+                  Open deal in HubSpot →
+                </a>
+              </div>
             ) : (
               <QuotePublishButton
                 quoteId={quote.id}

@@ -16,6 +16,8 @@ import IntakeUpload from '@/components/QuoteFlow/IntakeUpload'
 import IntakeVoice from '@/components/QuoteFlow/IntakeVoice'
 import ReviewForm from '@/components/QuoteFlow/ReviewForm'
 import OptionCards, { type PricingContext } from '@/components/QuoteFlow/OptionCards'
+import HubSpotDealVerificationPanel from '@/components/HubSpotDealVerification'
+import type { HubSpotDealVerification } from '@/lib/hubspotDealVerification'
 import {
   DEALER_CUSTOM_PRICING_MESSAGE,
   isCustomPricingOption,
@@ -58,6 +60,7 @@ export default function DealerNewQuotePage() {
   const [submittedQuotes, setSubmittedQuotes] = useState<SubmittedQuote[]>([])
   const [submitError, setSubmitError]   = useState('')
   const [submitWarning, setSubmitWarning] = useState('')
+  const [hubspotVerification, setHubspotVerification] = useState<HubSpotDealVerification | null>(null)
   const [fromPriceCheck, setFromPriceCheck] = useState(false)
 
   useEffect(() => {
@@ -146,6 +149,7 @@ export default function DealerNewQuotePage() {
     setSubmitting(true)
     setSubmitError('')
     setSubmitWarning('')
+    setHubspotVerification(null)
 
     try {
       const res = await fetch('/api/dealer/quotes/submit', {
@@ -157,6 +161,7 @@ export default function DealerNewQuotePage() {
         error?: string
         quotes?: Array<Record<string, unknown>>
         hubspotDraftErrors?: string[]
+        hubspotVerification?: HubSpotDealVerification
       }>(res)
       if (json.error) throw new Error(json.error)
 
@@ -189,6 +194,9 @@ export default function DealerNewQuotePage() {
         setSubmitWarning(
           `Some quote details could not be synced to HubSpot automatically. Our team has your request and will follow up. (${draftErrors.length} item${draftErrors.length === 1 ? '' : 's'})`
         )
+      }
+      if (json.hubspotVerification) {
+        setHubspotVerification(json.hubspotVerification)
       }
       setStep(5)
     } catch (e: any) {
@@ -408,6 +416,10 @@ export default function DealerNewQuotePage() {
                 ))}
               </div>
 
+              {hubspotVerification && (
+                <HubSpotDealVerificationPanel verification={hubspotVerification} />
+              )}
+
               {/* Status info */}
               <div className="cla-alert-warning mb-6 max-w-md mx-auto text-left">
                 <div className="flex items-start gap-3">
@@ -415,9 +427,9 @@ export default function DealerNewQuotePage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">Pending Review</p>
+                    <p className="text-sm font-semibold text-amber-800">With Cutlite sales</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      Our inside sales team is reviewing your request. Your deal is in HubSpot — the formal quote will be added when it&apos;s approved.
+                      Your deal and quote draft are in HubSpot. Jess will review the configuration, finalize pricing if needed, and send the quote to your customer.
                     </p>
                   </div>
                 </div>
@@ -445,6 +457,7 @@ export default function DealerNewQuotePage() {
                     setQuoteOptions([])
                     setSelectedOptions([])
                     setSubmittedQuotes([])
+                    setHubspotVerification(null)
                   }}
                   className="cla-btn-primary flex-1 py-3"
                 >

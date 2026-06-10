@@ -306,11 +306,24 @@ export async function searchDeals(query: string, page = 0): Promise<HubSpotDeal[
 
 export async function getDeal(dealId: string): Promise<HubSpotDeal> {
   const res = await fetchWithRetry(
-    `${BASE_URL}/crm/v3/objects/deals/${dealId}?properties=dealname,amount,dealstage,closedate,hubspot_owner_id,dealer_company&associations=contacts`,
+    `${BASE_URL}/crm/v3/objects/deals/${dealId}?properties=dealname,amount,dealstage,closedate,hubspot_owner_id,dealer_company,pipeline&associations=contacts,companies`,
     { headers: getHeaders() }
   )
   if (!res.ok) throw new Error(`Failed to get deal: ${await res.text()}`)
   return res.json()
+}
+
+export async function listDealAssociationIds(
+  dealId: string,
+  objectType: 'contacts' | 'companies' | 'quotes'
+): Promise<string[]> {
+  const res = await fetchWithRetry(
+    `${BASE_URL}/crm/v3/objects/deals/${dealId}/associations/${objectType}`,
+    { headers: getHeaders() }
+  )
+  if (!res.ok) return []
+  const data = await res.json()
+  return (data.results ?? []).map((r: { id: string }) => r.id)
 }
 
 export async function updateDeal(dealId: string, properties: Record<string, string>) {

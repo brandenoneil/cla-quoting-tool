@@ -48,6 +48,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     let hsQuoteId = quote.hubspotQuoteId ?? null
     const alreadyInHubSpot = Boolean(hsQuoteId)
 
+    if (alreadyInHubSpot && hsQuoteId) {
+      const updated = await prisma.quote.update({
+        where: { id: params.id },
+        data: { status: 'PUBLISHED' },
+      })
+      return Response.json({
+        success: true,
+        hubspotQuoteId: hsQuoteId,
+        dealLink: hubspotDealUrl(hubspotDealId),
+        quote: updated,
+      })
+    }
+
     let templates: Awaited<ReturnType<typeof fetchQuoteTemplates>> = []
     try {
       templates = await fetchQuoteTemplates()

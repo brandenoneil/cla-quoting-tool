@@ -121,6 +121,7 @@ export interface HubSpotDeal {
     dealname: string
     amount?: string
     dealstage: string
+    pipeline?: string
     closedate?: string
     hubspot_owner_id?: string
     dealer_company?: string

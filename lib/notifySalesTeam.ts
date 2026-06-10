@@ -69,7 +69,7 @@ export interface DealerQuoteAlertPayload {
   hubspotDraftErrors?: string[]
 }
 
-/** Notify inside sales of a new dealer quote request. Creates deal on submit; quote draft on approval. */
+/** Notify inside sales — deal + quote drafts are created on dealer submit. */
 export async function notifySalesTeamOfDealerQuote(payload: DealerQuoteAlertPayload): Promise<void> {
   const ownerIds = await getSalesTaskOwnerIds()
   const hasHubSpotDeal = payload.dealId != null && !isPendingHubSpotDealId(payload.dealId)
