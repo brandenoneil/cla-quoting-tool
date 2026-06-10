@@ -417,7 +417,7 @@ export default function DealerNewQuotePage() {
                   <div>
                     <p className="text-sm font-semibold text-amber-800">Pending Review</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      Our inside sales team is reviewing your request. A HubSpot deal will be created when your quote is approved and sent.
+                      Our inside sales team is reviewing your request. Your deal is in HubSpot — the formal quote will be added when it&apos;s approved.
                     </p>
                   </div>
                 </div>

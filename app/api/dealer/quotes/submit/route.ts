@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createPendingHubSpotDealId } from '@/lib/dealerHubSpotDeal'
+import { createDealerHubSpotDeal } from '@/lib/dealerHubSpotDeal'
 import { notifySalesTeamOfDealerQuote } from '@/lib/notifySalesTeam'
 import { lookupExactPrice, parseKw } from '@/lib/pricingTable'
 import { NextRequest } from 'next/server'
@@ -18,7 +18,7 @@ function generateQuoteNumber(): string {
 async function saveOneOption(
   option: QuoteOption,
   formData: any,
-  pendingDealId: string,
+  dealId: string,
   dealName: string,
   dealerEmail: string,
   dealerCompany: string
@@ -33,7 +33,7 @@ async function saveOneOption(
   return prisma.quote.create({
     data: {
       quoteNumber,
-      hubspotDealId: pendingDealId,
+      hubspotDealId: dealId,
       hubspotDealName: dealName,
       company: formData.company,
       contactName: formData.contactName,
@@ -81,11 +81,53 @@ export async function POST(req: NextRequest) {
     const dealerCompany = (session.user as any)?.dealerCompany || ''
     const primaryOption = options[0]
     const dealName = `${formData.company} - ${primaryOption.machineModel}`
-    const pendingDealId = createPendingHubSpotDealId()
+    const avgAmount = Math.round(
+      options.reduce((s, o) => s + o.totalPrice, 0) / options.length
+    )
+
+    let hubspotSetup: Awaited<ReturnType<typeof createDealerHubSpotDeal>>
+    try {
+      hubspotSetup = await createDealerHubSpotDeal({
+        dealName,
+        amount: avgAmount,
+        dealerCompany,
+        customerCompany: formData.company,
+        contactName: formData.contactName,
+        contactEmail: formData.contactEmail,
+        contactPhone: formData.contactPhone,
+      })
+    } catch (err: any) {
+      return Response.json(
+        {
+          error:
+            err?.message ??
+            'Could not create HubSpot deal. Check HubSpot configuration and try again.',
+        },
+        { status: 502 }
+      )
+    }
+
+    const dealId = hubspotSetup.dealId
+    const hubspotDraftErrors: string[] = [...hubspotSetup.associationWarnings]
+
+    if (hubspotSetup.ownerAssignmentSkipped) {
+      console.warn('[dealer/quotes/submit] Jess Moon was not assigned as deal owner', {
+        dealId,
+        skippedProperties: hubspotSetup.skippedProperties,
+      })
+    }
+
+    console.info('[dealer/quotes/submit] HubSpot deal created', {
+      dealId,
+      dealUrl: hubspotSetup.dealUrl,
+      ownerAssignmentSkipped: hubspotSetup.ownerAssignmentSkipped,
+    })
+
+    await new Promise((r) => setTimeout(r, 150))
 
     const quotes = await Promise.all(
       options.map((opt) =>
-        saveOneOption(opt, formData, pendingDealId, dealName, dealerEmail, dealerCompany)
+        saveOneOption(opt, formData, dealId, dealName, dealerEmail, dealerCompany)
       )
     )
 
@@ -109,6 +151,7 @@ export async function POST(req: NextRequest) {
 
     try {
       await notifySalesTeamOfDealerQuote({
+        dealId,
         dealName,
         dealerName,
         dealerEmail,
@@ -118,16 +161,19 @@ export async function POST(req: NextRequest) {
         contactEmail: formData.contactEmail,
         options: alertOptions,
         quoteReviewUrl,
+        hubspotDraftErrors,
       })
     } catch {
-      /* non-fatal — quote is saved locally for the sales queue */
+      /* non-fatal — quote is saved and deal exists in HubSpot */
     }
 
     return Response.json({
       quotes: await prisma.quote.findMany({ where: { id: { in: quotes.map((q) => q.id) } } }),
+      dealId,
       dealName,
+      hubspotDealUrl: hubspotSetup.dealUrl,
       hubspotDraftsCreated: 0,
-      hubspotDraftErrors: [],
+      hubspotDraftErrors,
       templatesApplied: 0,
     })
   } catch (err: any) {

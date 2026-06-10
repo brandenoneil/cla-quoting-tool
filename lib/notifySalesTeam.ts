@@ -69,7 +69,7 @@ export interface DealerQuoteAlertPayload {
   hubspotDraftErrors?: string[]
 }
 
-/** Notify inside sales of a new dealer quote request. HubSpot deal is created on approval, not submit. */
+/** Notify inside sales of a new dealer quote request. Creates deal on submit; quote draft on approval. */
 export async function notifySalesTeamOfDealerQuote(payload: DealerQuoteAlertPayload): Promise<void> {
   const ownerIds = await getSalesTaskOwnerIds()
   const hasHubSpotDeal = payload.dealId != null && !isPendingHubSpotDealId(payload.dealId)
@@ -117,7 +117,7 @@ export async function notifySalesTeamOfDealerQuote(payload: DealerQuoteAlertPayl
     hasHubSpotDeal ? 'HubSpot quotes:' : 'HubSpot:',
     hasHubSpotDeal
       ? quoteLines
-      : 'Deal and quote will be created in HubSpot when your team approves this request.',
+      : 'HubSpot quote draft will be added when your team approves this request.',
     ...(payload.hubspotDraftErrors?.length
       ? ['', `Warnings: ${payload.hubspotDraftErrors.join(' | ')}`]
       : []),

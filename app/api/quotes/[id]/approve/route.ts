@@ -81,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const noteBody = [
       alreadyInHubSpot
         ? `Quote ${quote.quoteNumber} APPROVED by ${session.user?.email} (HubSpot draft was already on deal).`
-        : `Quote ${quote.quoteNumber} APPROVED — deal and quote published to HubSpot by ${session.user?.email}`,
+        : `Quote ${quote.quoteNumber} APPROVED — quote published to HubSpot deal by ${session.user?.email}`,
       `Package: ${quote.tier} — ${quote.packageName}`,
       `Total: $${quote.totalAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
       quote.submittedByDealer ? `Originally submitted by dealer: ${quote.submittedByDealer}` : '',
