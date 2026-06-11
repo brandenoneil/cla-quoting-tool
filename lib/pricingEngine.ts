@@ -36,7 +36,6 @@ export const ADDONS = {
   bevelBasic: 50000,
   bevelPlus: 120000,
   ipgPremium: 0.08,
-  installation: { small: 15000, medium: 22500, large: 35000 },
   trainingDay: 2500,
   warranty1yr: 18000,
   warranty2yr: 32000,
@@ -77,16 +76,6 @@ function getBasePrice(modelKey: string): [number, number] {
 function getPowerMult(power: string): number {
   const key = power.toLowerCase().replace(/\s/g, '')
   return POWER_MULT[key] ?? 1.0
-}
-
-function getInstallationCost(modelKey: string): number {
-  if (modelKey.includes('plus-bevel-19025') || modelKey.includes('plus-bevel-6525')) {
-    return ADDONS.installation.large
-  }
-  if (modelKey.includes('plus-bevel') || modelKey.includes('fiber-tube')) {
-    return ADDONS.installation.medium
-  }
-  return ADDONS.installation.small
 }
 
 // Builds a warranty label + cost from the warranty string
@@ -163,14 +152,6 @@ export function buildLineItems(config: QuoteConfig, sheetBasePrice?: number): Li
       qty: 1, unitPrice: amount, amount, included: false,
     })
   }
-
-  // ── Standard inclusions ─────────────────────────────────────────────────────
-  const installCost = getInstallationCost(modelKey)
-  items.push({
-    description: 'Professional Installation & Commissioning',
-    detail: 'On-site installation, alignment, and system commissioning — standard on every machine',
-    qty: 1, unitPrice: installCost, amount: installCost, included: true,
-  })
 
   // ── SMART Options ───────────────────────────────────────────────────────────
   const smartOptions: [boolean | undefined, string, string, number][] = [

@@ -10,7 +10,6 @@ export const INTAKE_SYSTEM_PROMPT = `You are a quote assistant for Cutlite Ameri
 
 STANDARD ON EVERY MACHINE (do NOT ask about these — they are always included):
 - Delivery (standard ~12 weeks)
-- Professional installation & commissioning
 
 Information to collect:
 - Machine model — examples by family:
@@ -101,8 +100,7 @@ WARRANTY (add as line item only if selected):
 - +2 Year Extended Warranty: +$32,000
 - +3 Year Extended Warranty: +$45,000
 
-ALWAYS INCLUDED on every machine (shown as $0 line items, included: true):
-- Professional Installation & Commissioning
+Do NOT add a separate installation or commissioning line item — installation is included in the machine price.
 
 FREIGHT: 2.5% of subtotal (all non-included line items), shown as a separate number not a line item.
 

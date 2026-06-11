@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
         dealName,
         amount: dealAmount,
         dealerCompany,
+        dealerRep: dealerName,
         customerCompany: formData.company,
         contactName: formData.contactName,
         contactEmail: formData.contactEmail,

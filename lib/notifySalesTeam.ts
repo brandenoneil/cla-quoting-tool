@@ -32,18 +32,6 @@ async function associateNoteToDeal(noteId: string, dealId: string) {
   }
 }
 
-async function associateTaskToDeal(taskId: string, dealId: string) {
-  try {
-    await associateObjects('tasks', taskId, 'deals', dealId, 216)
-  } catch {
-    try {
-      await associateV3('tasks', taskId, 'deals', dealId, 'task_to_deal')
-    } catch {
-      /* non-fatal */
-    }
-  }
-}
-
 export interface DealerQuoteAlertOption {
   machineLabel: string
   machineModel: string
@@ -145,14 +133,16 @@ export async function notifySalesTeamOfDealerQuote(payload: DealerQuoteAlertPayl
   }
 
   for (const ownerId of ownerIds) {
+    if (!hasHubSpotDeal || !payload.dealId) continue
     try {
-      const task = await createTask(taskSubject, taskBody, 'HIGH', { ownerId, dueDate })
+      await createTask(taskSubject, taskBody, 'HIGH', {
+        ownerId,
+        dueDate,
+        dealId: payload.dealId,
+      })
       await delay(100)
-      if (hasHubSpotDeal && payload.dealId) {
-        await associateTaskToDeal(task.id, payload.dealId)
-      }
-    } catch {
-      /* non-fatal */
+    } catch (err: any) {
+      console.error('[notifySalesTeam] task create/associate failed', err?.message ?? err)
     }
   }
 

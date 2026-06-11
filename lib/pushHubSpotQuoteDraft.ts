@@ -6,20 +6,12 @@ import {
   associateV3,
   associateQuoteTemplate,
   fetchQuoteTemplates,
+  updateHubSpotQuote,
   type QuoteTemplate,
 } from '@/lib/hubspot'
+import { getJessMoonQuoteSenderProps } from '@/lib/hubspotQuoteSender'
+import { lineItemsForHubSpot } from '@/lib/quoteLineItems'
 import { suggestTemplate } from '@/lib/templateMatcher'
-
-const SENDER_PROPS = {
-  hs_currency: 'USD',
-  hs_language: 'en',
-  hs_sender_company_name: 'Cutlite America, LLC',
-  hs_sender_company_address: '1075 Windward Ridge Parkway, Suite 120',
-  hs_sender_company_city: 'Alpharetta',
-  hs_sender_company_state: 'GA',
-  hs_sender_company_zip: '30005',
-  hs_sender_company_country: 'United States',
-} as const
 
 function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
@@ -61,15 +53,24 @@ export async function pushQuoteDraftToHubSpot(
   }> = JSON.parse(quote.lineItemsJson)
 
   const expirationDate = Date.now() + 30 * 86400000
+  const senderProps = getJessMoonQuoteSenderProps()
 
   const hsQuote = await createHubSpotQuote({
     hs_title: `${quote.quoteNumber} — ${quote.company} — ${quote.machineModel}`,
     hs_expiration_date: expirationDate,
     hs_status: 'DRAFT',
-    ...SENDER_PROPS,
+    ...senderProps,
   })
 
   await delay(100)
+
+  // Re-apply sender after create — HubSpot can clear sender fields on first write.
+  try {
+    await updateHubSpotQuote(hsQuote.id, senderProps)
+    await delay(100)
+  } catch {
+    console.warn('[hubspot] quote sender re-apply failed for', hsQuote.id)
+  }
 
   if (templateId) {
     await associateQuoteTemplate(hsQuote.id, templateId)
@@ -88,7 +89,8 @@ export async function pushQuoteDraftToHubSpot(
 
   await delay(100)
 
-  const billableItems = lineItems.filter((item) => item.amount > 0 || item.unitPrice > 0)
+  const filteredItems = lineItemsForHubSpot(lineItems)
+  const billableItems = filteredItems.filter((item) => item.amount > 0 || item.unitPrice > 0)
   const itemsToPush =
     billableItems.length > 0
       ? billableItems

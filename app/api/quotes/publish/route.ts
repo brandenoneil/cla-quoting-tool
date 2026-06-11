@@ -9,7 +9,10 @@ import {
   updateDeal,
   createNote,
   associateV3,
+  updateHubSpotQuote,
 } from '@/lib/hubspot'
+import { getJessMoonQuoteSenderProps } from '@/lib/hubspotQuoteSender'
+import { lineItemsForHubSpot } from '@/lib/quoteLineItems'
 import { NextRequest } from 'next/server'
 import type { LineItem } from '@/types'
 
@@ -31,26 +34,25 @@ export async function POST(req: NextRequest) {
     const quote = await prisma.quote.findUnique({ where: { id: quoteId } })
     if (!quote) return Response.json({ error: 'Quote not found' }, { status: 404 })
 
-    const lineItems: LineItem[] = JSON.parse(quote.lineItemsJson)
+    const lineItems: LineItem[] = lineItemsForHubSpot(JSON.parse(quote.lineItemsJson))
     const expirationDate = Date.now() + 30 * 86400000
+    const senderProps = getJessMoonQuoteSenderProps()
 
-    // 1. Create HubSpot Quote
-    // Note: templates are linked via association AFTER creation, not via a property
     const hsQuote = await createHubSpotQuote({
       hs_title: `${quote.quoteNumber} — ${quote.company} — ${quote.machineModel}`,
       hs_expiration_date: expirationDate,
       hs_status: 'DRAFT',
-      hs_currency: 'USD',
-      hs_language: 'en',
-      hs_sender_company_name: 'Cutlite America, LLC',
-      hs_sender_company_address: '1075 Windward Ridge Parkway, Suite 120',
-      hs_sender_company_city: 'Alpharetta',
-      hs_sender_company_state: 'GA',
-      hs_sender_company_zip: '30005',
-      hs_sender_company_country: 'United States',
+      ...senderProps,
     })
 
     await new Promise((r) => setTimeout(r, 100))
+
+    try {
+      await updateHubSpotQuote(hsQuote.id, senderProps)
+      await new Promise((r) => setTimeout(r, 100))
+    } catch {
+      /* non-fatal */
+    }
 
     if (templateId) {
       try {

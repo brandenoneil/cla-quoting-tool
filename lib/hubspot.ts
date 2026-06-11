@@ -315,7 +315,7 @@ export async function getDeal(dealId: string): Promise<HubSpotDeal> {
 
 export async function listDealAssociationIds(
   dealId: string,
-  objectType: 'contacts' | 'companies' | 'quotes'
+  objectType: 'contacts' | 'companies' | 'quotes' | 'tasks'
 ): Promise<string[]> {
   const res = await fetchWithRetry(
     `${BASE_URL}/crm/v3/objects/deals/${dealId}/associations/${objectType}`,
@@ -373,6 +373,7 @@ function extractInvalidPropertyName(message: string): string | null {
   }
   if (message.includes('hubspot_owner_id')) return 'hubspot_owner_id'
   if (message.includes('dealer_company')) return 'dealer_company'
+  if (message.includes('dealer_rep')) return 'dealer_rep'
   return null
 }
 
@@ -574,6 +575,16 @@ export async function createCompany(properties: Record<string, string>) {
   return res.json()
 }
 
+export async function updateHubSpotQuote(quoteId: string, properties: Record<string, string | number>) {
+  const res = await fetchWithRetry(`${BASE_URL}/crm/v3/objects/quotes/${quoteId}`, {
+    method: 'PATCH',
+    headers: getHeaders(),
+    body: JSON.stringify({ properties }),
+  })
+  if (!res.ok) throw new Error(`Failed to update HubSpot quote: ${await res.text()}`)
+  return res.json()
+}
+
 // ─── ASSOCIATIONS ─────────────────────────────────────────────────────────────
 
 export async function associateObjects(
@@ -674,13 +685,54 @@ export async function fetchQuoteTemplates(): Promise<QuoteTemplate[]> {
   }))
 }
 
-// ─── NOTES ────────────────────────────────────────────────────────────────────
+// ─── NOTES & TASKS ────────────────────────────────────────────────────────────
+
+const TASK_TO_DEAL_ASSOCIATION = 216
+const DEAL_TO_TASK_ASSOCIATION = 215
+
+/** Link a HubSpot task to a deal — tries multiple API paths and verifies the link. */
+export async function associateTaskWithDeal(taskId: string, dealId: string): Promise<void> {
+  const attempts: Array<() => Promise<void>> = [
+    async () => associateObjects('tasks', taskId, 'deals', dealId, TASK_TO_DEAL_ASSOCIATION),
+    async () => associateObjects('deals', dealId, 'tasks', taskId, DEAL_TO_TASK_ASSOCIATION),
+    async () => {
+      const res = await fetchWithRetry(
+        `${BASE_URL}/crm/v3/objects/tasks/${taskId}/associations/deals/${dealId}/task_to_deal`,
+        { method: 'PUT', headers: getHeaders() }
+      )
+      if (!res.ok) throw new Error(await res.text())
+    },
+    async () => {
+      const res = await fetchWithRetry(
+        `${BASE_URL}/crm/v3/objects/deals/${dealId}/associations/tasks/${taskId}/deal_to_task`,
+        { method: 'PUT', headers: getHeaders() }
+      )
+      if (!res.ok) throw new Error(await res.text())
+    },
+  ]
+
+  const errors: string[] = []
+  for (const attempt of attempts) {
+    try {
+      await attempt()
+      await delay(150)
+      const linkedTaskIds = await listDealAssociationIds(dealId, 'tasks')
+      if (linkedTaskIds.includes(taskId)) return
+    } catch (err: any) {
+      errors.push(err?.message ?? String(err))
+    }
+  }
+
+  throw new Error(
+    `Task ${taskId} is not associated with deal ${dealId}${errors.length ? `: ${errors[0]}` : ''}`
+  )
+}
 
 export async function createTask(
   subject: string,
   body: string,
   priority: 'HIGH' | 'MEDIUM' | 'LOW' = 'HIGH',
-  options?: { ownerId?: string; dueDate?: Date }
+  options?: { ownerId?: string; dueDate?: Date; dealId?: string }
 ) {
   const properties: Record<string, string> = {
     hs_task_subject: subject,
@@ -692,13 +744,29 @@ export async function createTask(
   if (options?.ownerId) properties.hubspot_owner_id = options.ownerId
   if (options?.dueDate) properties.hs_timestamp = options.dueDate.getTime().toString()
 
+  const payload: { properties: Record<string, string>; associations?: unknown[] } = { properties }
+  if (options?.dealId) {
+    payload.associations = [
+      {
+        to: { id: options.dealId },
+        types: [{ associationCategory: 'HUBSPOT_DEFINED', associationTypeId: TASK_TO_DEAL_ASSOCIATION }],
+      },
+    ]
+  }
+
   const res = await fetchWithRetry(`${BASE_URL}/crm/v3/objects/tasks`, {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify({ properties }),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) throw new Error(`Failed to create task: ${await res.text()}`)
-  return res.json()
+  const task = await res.json()
+
+  if (options?.dealId) {
+    await associateTaskWithDeal(task.id, options.dealId)
+  }
+
+  return task
 }
 
 export async function createNote(body: string) {

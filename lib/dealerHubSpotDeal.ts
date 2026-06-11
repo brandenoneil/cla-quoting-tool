@@ -33,7 +33,10 @@ export function createPendingHubSpotDealId(): string {
 export interface DealerHubSpotDealInput {
   dealName: string
   amount: number
+  /** Dealer org name (custom property dealer_company). */
   dealerCompany?: string
+  /** Person who submitted the quote request (custom property dealer_rep). */
+  dealerRep?: string
   customerCompany: string
   contactName: string
   contactEmail: string
@@ -71,6 +74,7 @@ export async function createDealerHubSpotDeal(
     closedate: new Date(Date.now() + 90 * 86400000).getTime(),
   }
   if (jessOwnerId) dealProperties.hubspot_owner_id = jessOwnerId
+  if (input.dealerRep) dealProperties.dealer_rep = input.dealerRep
   if (input.dealerCompany) dealProperties.dealer_company = input.dealerCompany
 
   const { deal, ownerAssignmentSkipped, skippedProperties } =
