@@ -1,10 +1,10 @@
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { sessionTokenCookieName, useSecureAuthCookies } from '@/lib/auth-cookies'
+import { sessionTokenCookieName, shouldUseSecureAuthCookies } from '@/lib/auth-cookies'
 import { prisma } from '@/lib/prisma'
 
-const secureCookies = useSecureAuthCookies()
+const secureCookies = shouldUseSecureAuthCookies()
 
 export const authOptions: NextAuthOptions = {
   providers: [

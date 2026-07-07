@@ -161,7 +161,7 @@ export function coerceBevelForModel(
   machineModelRaw: string
 ): BevelChoice {
   const norm = normalizeModel(machineModelRaw || '')
-  let choice = normalizeBevelChoice(current)
+  const choice = normalizeBevelChoice(current)
 
   if (isPlusBevelMachineModel(machineModelRaw)) return 'Yes'
   if (/^PLUS\s+Evo\b/i.test(norm) || /^FIBER\s+Fast\b/i.test(norm) || /^XME\b/i.test(norm)) {

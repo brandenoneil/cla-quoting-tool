@@ -71,10 +71,13 @@ export async function POST(req: NextRequest) {
 
     const validationNotice = getChatValidationNotice(messages)
 
-    const stream = await client.messages.stream({
+    // create() with stream:true rejects on request errors (bad key, no credits)
+    // BEFORE we start the SSE response, so the client gets a proper JSON error.
+    const stream = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: systemPrompt,
+      stream: true,
       messages: messages.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -100,7 +103,17 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode('data: [DONE]\n\n'))
           controller.close()
         } catch (err) {
-          controller.error(err)
+          // Mid-stream failure: send a readable error event instead of aborting
+          // the response, which the browser would report as a network error.
+          const message = friendlyChatError(err)
+          console.error('[chat] stream failed:', err instanceof Error ? err.message : err)
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: message })}\n\n`))
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+            controller.close()
+          } catch {
+            controller.error(err)
+          }
         }
       },
     })
@@ -113,7 +126,22 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Chat service unavailable'
+    const message = friendlyChatError(err)
+    console.error('[chat] request failed:', err instanceof Error ? err.message : err)
     return Response.json({ error: message }, { status: 500 })
   }
+}
+
+function friendlyChatError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : ''
+  if (raw.includes('credit balance')) {
+    return 'The AI assistant is temporarily unavailable — the Anthropic API account is out of credits. Use “Skip — I’ll fill in details manually” below, or ask an admin to add credits at console.anthropic.com → Plans & Billing.'
+  }
+  if (raw.includes('authentication') || raw.includes('invalid x-api-key') || raw.includes('api_key')) {
+    return 'The AI assistant is unavailable — the Anthropic API key (CLA_ANTHROPIC_KEY) is missing or invalid. Use “Skip — I’ll fill in details manually” below.'
+  }
+  if (raw.includes('rate_limit') || raw.includes('overloaded')) {
+    return 'The AI assistant is busy right now — please try again in a moment.'
+  }
+  return raw || 'Chat service unavailable.'
 }

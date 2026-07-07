@@ -1,7 +1,7 @@
 import type { ParsedDeal } from '@/types'
 
 const MACHINE_PATTERN =
-  /\b(PLUS\s+Bevel|Demo\s+Fast|FIBER\s+Tube\s+TL|XMF|XME|Fast)\s*([\d\-]+)\s+(\d+(?:\.\d+)?kW)\s*(IPG|Raycus|Racus|nLIGHT|Coherent)?\b/i
+  /\b(PLUS\s+Bevel|PLUS\s+EVO|Fiber\s+Plus\s+HD|Fiber\s+HD|FHD|Demo\s+Fast|FIBER\s+Tube\s+TL|XMF|XME|Fast)\s*([\d\-]+)\s+(\d+(?:\.\d+)?kW)\s*(IPG|Raycus|Racus|Maxphotonics|nLIGHT|Coherent)?\b/i
 
 export function parseDealName(dealName: string): ParsedDeal {
   const match = dealName.match(MACHINE_PATTERN)
@@ -41,9 +41,15 @@ export function parseDealName(dealName: string): ParsedDeal {
 }
 
 function normalizeModel(model: string, format: string): string {
-  const m = model.trim().toLowerCase()
-  if (m.includes('plus bevel') || m.includes('plus  bevel')) {
+  const m = model.trim().toLowerCase().replace(/\s+/g, ' ')
+  if (m.includes('plus bevel')) {
     return `Plus Bevel ${format}`.trim()
+  }
+  if (m.includes('plus evo')) {
+    return `Plus EVO ${format}`.trim()
+  }
+  if (m.includes('fiber plus hd') || m.includes('fiber hd') || m === 'fhd') {
+    return `Fiber HD ${format}`.trim()
   }
   if (m.includes('demo fast')) {
     return `Demo Fast ${format}`.trim()
@@ -60,6 +66,8 @@ function normalizeModel(model: string, format: string): string {
 export function modelToKey(model: string): string {
   const m = model.toLowerCase().replace(/\s+/g, '-')
   if (m.includes('plus-bevel') || m.includes('plusbevel')) return 'plus-bevel-4020'
+  if (m.includes('plus-evo') || m.includes('plusevo')) return 'plus-evo-6525'
+  if (m.includes('fiber-hd') || m.includes('fiberhd') || m.includes('fhd')) return 'fiber-hd-4020'
   if (m.includes('demo-fast')) return 'demo-fast-4020'
   if (m.includes('fiber-tube') || m.includes('fibertube')) return 'fiber-tube-tl'
   if (m.includes('xmf')) return 'xmf-6020'

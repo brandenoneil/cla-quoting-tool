@@ -1,5 +1,5 @@
 /** Match NextAuth secure cookie naming on Vercel / HTTPS (see next-auth/jwt getToken). */
-export function useSecureAuthCookies(): boolean {
+export function shouldUseSecureAuthCookies(): boolean {
   const url = process.env.NEXTAUTH_URL ?? ''
   if (url.startsWith('https://')) return true
   if (url.startsWith('http://')) return false
@@ -7,7 +7,7 @@ export function useSecureAuthCookies(): boolean {
 }
 
 export function sessionTokenCookieName(): string {
-  return useSecureAuthCookies()
+  return shouldUseSecureAuthCookies()
     ? '__Secure-next-auth.session-token'
     : 'next-auth.session-token'
 }

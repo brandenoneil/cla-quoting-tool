@@ -11,6 +11,7 @@ import IntakeVoice from '@/components/QuoteFlow/IntakeVoice'
 import ReviewForm from '@/components/QuoteFlow/ReviewForm'
 import OptionCards, { type PricingContext } from '@/components/QuoteFlow/OptionCards'
 import { suggestTemplate } from '@/lib/templateMatcher'
+import { parseDealName } from '@/lib/dealParser'
 import type { QuoteTemplate } from '@/lib/hubspot'
 import type { QuoteFormData, QuoteOption } from '@/types'
 
@@ -68,7 +69,20 @@ function NewQuotePage() {
       .then(r => r.json())
       .then(data => {
         const deal = data.deals?.[0]
-        if (deal) handleDealSelected(deal, {})
+        if (!deal) return
+        // Mirror DealSelect's in-wizard selection: parse machine info from the
+        // deal name and prefill contact details from the associated HubSpot contact
+        const parsed = parseDealName(deal.properties?.dealname ?? '')
+        const contact = deal.contact?.properties
+        handleDealSelected(deal, {
+          company: parsed.company,
+          machineModel: parsed.model,
+          machinePower: parsed.power,
+          laserSource: parsed.laserSource,
+          contactName: contact ? [contact.firstname, contact.lastname].filter(Boolean).join(' ') : '',
+          contactEmail: contact?.email || '',
+          contactPhone: contact?.phone || '',
+        })
       })
       .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -105,7 +119,8 @@ function NewQuotePage() {
 
   // ─── Step 2: Intake complete ─────────────────────────────────────────────────
   function handleIntakeComplete(data: Record<string, any>) {
-    setIntakeData(data)
+    // Merge over deal-parsed defaults (model/power/laser) so "Skip" keeps them
+    setIntakeData(prev => ({ ...prev, ...data }))
     setStep(3)
   }
 

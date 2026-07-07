@@ -73,11 +73,13 @@ export default function IntakeChat({ dealContext, onQuoteDataExtracted }: Props)
         let details = ''
         try {
           const data = await res.json()
-          details = data?.error ? ` ${data.error}` : ''
+          details = data?.error ?? ''
         } catch {
           /* ignore json parse failures */
         }
-        throw new Error(`Chat request failed (${res.status}).${details}`)
+        const apiError = new Error(details || `Chat request failed (${res.status}). Please try again.`)
+        apiError.name = 'ChatApiError'
+        throw apiError
       }
 
       const reader = res.body?.getReader()
@@ -94,14 +96,21 @@ export default function IntakeChat({ dealContext, onQuoteDataExtracted }: Props)
             const payload = line.slice(6)
             if (payload === '[DONE]') break
             try {
-              const { text: chunk } = JSON.parse(payload)
-              fullResponse += chunk
+              const parsed = JSON.parse(payload)
+              if (parsed.error) {
+                const streamError = new Error(parsed.error)
+                streamError.name = 'ChatApiError'
+                throw streamError
+              }
+              fullResponse += parsed.text
               setMessages((prev) => {
                 const updated = [...prev]
                 updated[assistantIndex] = { role: 'assistant', content: fullResponse }
                 return updated
               })
-            } catch {}
+            } catch (err) {
+              if (err instanceof Error && err.name === 'ChatApiError') throw err
+            }
           }
         }
       }
@@ -117,7 +126,9 @@ export default function IntakeChat({ dealContext, onQuoteDataExtracted }: Props)
       const message =
         err instanceof Error && err.name === 'AbortError'
           ? 'Chat timed out. Please try again.'
-          : 'Sorry, there was an error. Please try again.'
+          : err instanceof Error && err.name === 'ChatApiError'
+            ? err.message
+            : 'Sorry, there was an error. Please try again.'
       setMessages((prev) => {
         const updated = [...prev]
         updated[assistantIndex] = {

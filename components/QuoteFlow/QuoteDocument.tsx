@@ -587,7 +587,7 @@ export default function QuoteDocument({ quote, isPdf = false }: Props) {
           </div>
 
           <div style={{ marginTop: '24px', fontSize: '13px', color: C.midGray, lineHeight: '1.75' }}>
-            Combining high quality magnetic linear motors with {laserLabel} fiber laser sources produces high dimensional accuracy when cutting carbon steel and stainless steel. Cutlite Penta's EVO3 Cutting Head allows higher pressure cuts with less nitrogen than our competitors.
+            Combining high quality magnetic linear motors with {laserLabel} fiber laser sources produces high dimensional accuracy when cutting carbon steel and stainless steel. Cutlite Penta&apos;s EVO3 Cutting Head allows higher pressure cuts with less nitrogen than our competitors.
           </div>
         </div>
       </div>
@@ -617,7 +617,7 @@ export default function QuoteDocument({ quote, isPdf = false }: Props) {
           <div style={{ fontSize: '13px', color: C.midGray, lineHeight: '1.8' }}>
             <p><strong style={{ color: C.darkGray }}>Cutlite Penta S.p.A.</strong> was founded in 1992 as a division of El.En. group to design and build the first machines to cut wood and plastic materials using resources built by El.En. El.En. group is a well-established Italian company listed on both the Italian and U.S. stock exchanges, with a market capitalization of 1.34 billion euro.</p>
             <p style={{ marginTop: '12px' }}>To date, Cutlite Penta S.p.A. has become the standard for metal cutting in Europe with a total turnover of 235 million euro at the end of fiscal year 2022.</p>
-            <p style={{ marginTop: '12px' }}>By giving their in-house technical experts decision-making and leadership roles, Cutlite Penta has continued to design the best fiber lasers on the market and push past the boundaries of existing technology. An example of this is Cutlite Penta's proprietary cutting head — the EVO 3 Cutting Head. It is currently the only cutting head in existence capable of effectively supporting laser cuts on metal with power at 50kW. The result is impeccable cuts even on high thicknesses, up to 50mm.</p>
+            <p style={{ marginTop: '12px' }}>By giving their in-house technical experts decision-making and leadership roles, Cutlite Penta has continued to design the best fiber lasers on the market and push past the boundaries of existing technology. An example of this is Cutlite Penta&apos;s proprietary cutting head — the EVO 3 Cutting Head. It is currently the only cutting head in existence capable of effectively supporting laser cuts on metal with power at 50kW. The result is impeccable cuts even on high thicknesses, up to 50mm.</p>
             <p style={{ marginTop: '12px' }}>After meeting the demands for high-quality, high-power fiber lasers in the Brazilian and European markets, demand from the United States began to increase. In 2022, Cutlite Penta approached Mark Doxtader to lead the American arm. Mark approached his business partner, Tan Tam, and the two launched Cutlite America in June 2023.</p>
             <p style={{ marginTop: '12px' }}>Cutlite America is proud to be the sole authorized distributor of Cutlite Penta fiber lasers in the United States and Canada, offering a complete turn-key experience for its customers. At our Cutlite America Experience Center in Alpharetta, Georgia, we offer training by Cutlite Penta certified technicians. Our technicians will travel to your facility to provide maintenance and warranty service, and our Parts Department will order and coordinate delivery for machine parts and consumables.</p>
           </div>
@@ -907,10 +907,10 @@ export default function QuoteDocument({ quote, isPdf = false }: Props) {
             Agreement Terms
           </div>
           <div style={{ fontSize: '12px', color: C.midGray, lineHeight: '1.8', textTransform: 'uppercase', fontWeight: 600, marginBottom: '16px' }}>
-            This agreement and any addendums or exhibits are subject to the additional terms and conditions below hereof specifically including, without limitation, the warranties and limitation of seller's liability.
+            This agreement and any addendums or exhibits are subject to the additional terms and conditions below hereof specifically including, without limitation, the warranties and limitation of seller&apos;s liability.
           </div>
           <div style={{ fontSize: '12px', color: C.midGray, lineHeight: '1.75', marginBottom: '16px' }}>
-            Although this Agreement may have been executed by an agent of Seller, it is not binding on Seller until executed by an officer of Seller at Seller's principal office stated above. Purchaser's signature represents a firm offer to purchase pursuant to the terms and conditions stated below.
+            Although this Agreement may have been executed by an agent of Seller, it is not binding on Seller until executed by an officer of Seller at Seller&apos;s principal office stated above. Purchaser&apos;s signature represents a firm offer to purchase pursuant to the terms and conditions stated below.
           </div>
           <ol style={{ fontSize: '12px', color: C.midGray, lineHeight: '1.75', paddingLeft: '20px' }}>
             {[
@@ -938,7 +938,7 @@ export default function QuoteDocument({ quote, isPdf = false }: Props) {
         </div>
 
         <div style={{ padding: '20px 56px 48px', fontSize: '12px', color: C.midGray, lineHeight: '1.75' }}>
-          <p>Please note it is the customer's responsibility to equip themselves with sheet metal lifting systems suitable for the size and weight of the sheets in order to ensure the table is not subject to high impact during the loading and unloading process.</p>
+          <p>Please note it is the customer&apos;s responsibility to equip themselves with sheet metal lifting systems suitable for the size and weight of the sheets in order to ensure the table is not subject to high impact during the loading and unloading process.</p>
         </div>
       </div>
 
