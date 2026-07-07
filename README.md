@@ -126,7 +126,7 @@ For **local-only** development you can often set **both** to the **direct** URI 
 
 4. **Create the admin user** (required for `/login`):
 
-   **Default credentials** (see [`prisma/seed.ts`](prisma/seed.ts)):  
+   **Default credentials** (see [`prisma/seed.js`](prisma/seed.js)):  
    `admin@cutliteamerica.com` / `CutliteAdmin2026` — change after first login.
 
    **Option A — Prisma seed (recommended)**  
