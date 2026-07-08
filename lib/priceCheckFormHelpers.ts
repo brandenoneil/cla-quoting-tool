@@ -42,6 +42,14 @@ export function modelSupports60Kw(sheetModel: string): boolean {
   )
 }
 
+/** Off-sheet kWs that may still be quoted for this model (custom pricing, e.g. 60kW on Fiber HD). */
+export function quotableOffSheetKws(sheetKws: number[], sheetModel: string): number[] {
+  if (!modelSupports60Kw(sheetModel)) return []
+  if (sheetKws.includes(60)) return []
+  const maxSheet = sheetKws.length ? Math.max(...sheetKws) : 0
+  return maxSheet >= 20 && maxSheet < 60 ? [60] : []
+}
+
 /** Sheet kW steps plus off-sheet selections (e.g. 60kW when the sheet tops out at 50kW). */
 export function buildPowerSliderOptions(
   sheetKws: number[],
@@ -52,11 +60,8 @@ export function buildPowerSliderOptions(
   const cur = parseKwLabel(machinePower)
   if (cur > 0) kws.add(cur)
 
-  if (modelSupports60Kw(sheetModel) && !kws.has(60)) {
-    const maxSheet = sheetKws.length ? Math.max(...sheetKws) : 0
-    if (maxSheet >= 20 && maxSheet < 60) {
-      kws.add(60)
-    }
+  for (const kw of quotableOffSheetKws(sheetKws, sheetModel)) {
+    kws.add(kw)
   }
 
   return Array.from(kws)
@@ -75,10 +80,11 @@ export function snapPower(kws: number[], current: string, sheetModel = ''): stri
   const cur = parseKwLabel(current)
   if (kws.includes(cur)) return `${cur}kW`
 
-  if (sheetModel) {
-    const options = buildPowerSliderOptions(kws, current, sheetModel)
-    const curLabel = `${cur}kW`
-    if (options.includes(curLabel)) return curLabel
+  // Keep an off-sheet power only when this model can genuinely be quoted at it
+  // (e.g. 60kW on Fiber HD). Otherwise snap to the nearest sheet power so a
+  // stale selection doesn't follow the user across models and warn everywhere.
+  if (sheetModel && quotableOffSheetKws(kws, sheetModel).includes(cur)) {
+    return `${cur}kW`
   }
 
   let pick = kws[0]!
