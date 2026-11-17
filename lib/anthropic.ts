@@ -102,9 +102,9 @@ WARRANTY (add as line item only if selected):
 
 Do NOT add a separate installation or commissioning line item — installation is included in the machine price.
 
-FREIGHT: 2.5% of subtotal (all non-included line items), shown as a separate number not a line item.
+FREIGHT: already included in the machine price. Always set freight to 0 and never add a freight line item.
 
-TOTALS: totalPrice = subtotal + freight (no discount unless specifically negotiated).
+TOTALS: totalPrice = subtotal (no discount unless specifically negotiated).
 
 Return ONLY this JSON array (no markdown, no explanation):
 [

@@ -412,8 +412,7 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
 
   // ── Derived totals ────────────────────────────────────────────────────────────
   const subtotal = lineItems.filter(i => !i.included).reduce((s, i) => s + i.amount, 0)
-  const freight  = subtotal > 0 ? Math.round(subtotal * 0.025 * 100) / 100 : 0
-  const total    = subtotal - discountAmount + freight
+  const total    = subtotal - discountAmount
 
   const inputCls     = 'cla-input py-2.5'
   const labelCls     = 'block text-sm font-medium text-gray-700 mb-1'
@@ -940,10 +939,6 @@ export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
               value={deliveryWeeks}
               onChange={e => setDeliveryWeeks(Number(e.target.value))}
             />
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-500">Freight (2.5%)</span>
-            <span className="font-medium">{fmt(freight)}</span>
           </div>
           <div className="flex justify-between pt-3 border-t border-gray-300">
             <span className="font-bold text-[#0A2E52]">Total</span>

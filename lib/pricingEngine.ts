@@ -40,7 +40,6 @@ export const ADDONS = {
   warranty1yr: 18000,
   warranty2yr: 32000,
   warranty3yr: 45000,
-  freightPct: 0.025,
   // SMART Options
   smartMix: 31300,
   smartChanger: 41700,
@@ -236,8 +235,9 @@ export function buildQuoteOption(
 ): QuoteOption {
   const lineItems = buildLineItems(config, sheetBasePrice)
   const subtotal = lineItems.reduce((sum, item) => sum + (item.included ? 0 : item.amount), 0)
-  const freight = Math.round(subtotal * ADDONS.freightPct)
-  const totalPrice = subtotal + freight
+  // Machine list prices already include freight, so none is added on top.
+  const freight = 0
+  const totalPrice = subtotal
 
   return {
     machineLabel: '',

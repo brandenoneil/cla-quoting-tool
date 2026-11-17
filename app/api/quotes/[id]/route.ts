@@ -42,8 +42,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const subtotal = items
     .filter((i) => !i.included)
     .reduce((sum, i) => sum + i.amount, 0)
-  const freight = subtotal > 0 ? Math.round(subtotal * 0.025 * 100) / 100 : 0
-  const totalAmount = subtotal - (discountAmount ?? 0) + freight
+  // Machine list prices already include freight, so none is added on top.
+  const freight = 0
+  const totalAmount = subtotal - (discountAmount ?? 0)
 
   const updated = await prisma.quote.update({
     where: { id: params.id },

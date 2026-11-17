@@ -151,10 +151,12 @@ export default async function QuoteDetailPage({ params }: { params: { id: string
                       <span className="font-medium">-{formatCurrency(quote.discountAmount)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between w-48">
-                    <span className="text-gray-500">Freight</span>
-                    <span className="font-medium">{formatCurrency(quote.freight)}</span>
-                  </div>
+                  {quote.freight > 0 && (
+                    <div className="flex justify-between w-48">
+                      <span className="text-gray-500">Freight</span>
+                      <span className="font-medium">{formatCurrency(quote.freight)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between w-48 pt-2 border-t border-gray-300 mt-1">
                     <span className="font-bold text-[#0A2E52]">Total</span>
                     <span className="font-black text-[#0A2E52] text-base">{formatCurrency(quote.totalAmount)}</span>

@@ -18,7 +18,7 @@ import type { MachineOption, QuoteConfig } from '@/types'
 
 const DISCLAIMER = [
   'Approximate configured totals only.',
-  'Freight is estimated using the same rules as formal quotes.',
+  'Freight is included in machine pricing.',
   'This is not a binding offer — submit a quote request for official pricing and approval.',
 ].join(' ')
 

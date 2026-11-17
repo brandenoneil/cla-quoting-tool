@@ -183,7 +183,7 @@ function SlotCard({
           </p>
         )}
         <p className="text-xs text-gray-500">
-          Subtotal {fmtUsd(slot.subtotal)} · Freight {fmtUsd(slot.freight)}
+          Subtotal {fmtUsd(slot.subtotal)} · Freight included
         </p>
         {!slot.sheetMatched && (
           <p className="text-[11px] text-amber-700 font-medium">Approx. — no exact sheet row</p>
