@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { ensurePriceTable } from '@/lib/hubspotPriceTable'
 import { buildQuoteOption } from '@/lib/pricingEngine'
 import {
   coerceBevelForModel,
@@ -61,6 +62,7 @@ function machineToConfig(m: MachineOption): QuoteConfig {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return new Response('Unauthorized', { status: 401 })
+  await ensurePriceTable()
 
   const { formData } = await req.json()
 

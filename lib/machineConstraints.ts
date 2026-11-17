@@ -1,5 +1,5 @@
 import type { MachineOption } from '@/types'
-import { PRICE_TABLE, normalizeLaser, normalizeModel } from '@/lib/pricingTable'
+import { PRICE_TABLE, getPriceTableVersion, normalizeLaser, normalizeModel } from '@/lib/pricingTable'
 
 /** UI labels matching ReviewForm radios — only sources offered on Cutlite America quotes */
 export const LASER_SOURCE_LABELS = ['IPG', 'Raycus'] as const
@@ -20,9 +20,11 @@ export function canonicalLaserSource(raw: string | undefined | null): LaserSourc
 // ─── Which lasers appear in the price list for this normalized model ───
 
 let lasersByNormalizedModel: Map<string, Set<'IPG' | 'Raycus'>> | null = null
+let lasersBuiltAtVersion = -1
 
 function sheetLasersForModel(): Map<string, Set<'IPG' | 'Raycus'>> {
-  if (!lasersByNormalizedModel) {
+  if (!lasersByNormalizedModel || lasersBuiltAtVersion !== getPriceTableVersion()) {
+    lasersBuiltAtVersion = getPriceTableVersion()
     const map = new Map<string, Set<'IPG' | 'Raycus'>>()
     for (const key of Object.keys(PRICE_TABLE)) {
       const [model, laser] = key.split('|')
@@ -59,10 +61,12 @@ export function coerceLaserSourceForModel(current: string, machineModelRaw: stri
 }
 
 let kwByModelLaser: Map<string, number[]> | null = null
+let kwBuiltAtVersion = -1
 
 /** One pass over PRICE_TABLE — used by enrich + price-check (avoids O(n×sheet) scans). */
 function sheetKwByModelLaser(): Map<string, number[]> {
-  if (!kwByModelLaser) {
+  if (!kwByModelLaser || kwBuiltAtVersion !== getPriceTableVersion()) {
+    kwBuiltAtVersion = getPriceTableVersion()
     const map = new Map<string, number[]>()
     for (const key of Object.keys(PRICE_TABLE)) {
       const [model, laser, kwStr] = key.split('|')

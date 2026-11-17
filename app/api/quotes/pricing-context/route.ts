@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { ensurePriceTable } from '@/lib/hubspotPriceTable'
 import { getClosedWonDealsByModel } from '@/lib/hubspot'
 import { lookupExactPrice, normalizeModel, normalizeLaser, parseKw } from '@/lib/pricingTable'
 import { NextRequest } from 'next/server'
@@ -7,6 +8,7 @@ import { NextRequest } from 'next/server'
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return new Response('Unauthorized', { status: 401 })
+  await ensurePriceTable()
 
   const model = req.nextUrl.searchParams.get('model') ?? ''
   const laser = req.nextUrl.searchParams.get('laser') ?? 'IPG'

@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth'
 import type { Session } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { ensurePriceTable } from '@/lib/hubspotPriceTable'
 import { buildQuoteOption } from '@/lib/pricingEngine'
 import { coerceBevelForModel, coerceLaserSourceForModel } from '@/lib/machineConstraints'
 import {
@@ -99,12 +100,14 @@ export async function GET() {
   if (!dealerOnly(session)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  await ensurePriceTable()
   return Response.json({ machines: getDealerPriceCheckCatalog() })
 }
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!dealerOnly(session)) return Response.json({ error: 'Forbidden' }, { status: 403 })
+  await ensurePriceTable()
 
   let body: {
     machineModel?: string

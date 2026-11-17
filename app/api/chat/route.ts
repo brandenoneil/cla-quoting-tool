@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { ensurePriceTable } from '@/lib/hubspotPriceTable'
 import { getAnthropicClient, INTAKE_SYSTEM_PROMPT } from '@/lib/anthropic'
 import {
   buildIntakeValidationSystemBlock,
@@ -11,6 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) return new Response('Unauthorized', { status: 401 })
+    await ensurePriceTable()
 
     const { messages, dealContext } = await req.json()
 

@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { ensurePriceTable } from '@/lib/hubspotPriceTable'
 import { prisma } from '@/lib/prisma'
 import { createDealerHubSpotDeal, PRELIM_PROPOSAL_STAGE } from '@/lib/dealerHubSpotDeal'
 import { verifyDealerSubmitHubSpotDeal } from '@/lib/hubspotDealVerification'
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
   if ((session.user as any).role !== 'dealer') {
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
+  await ensurePriceTable()
 
   try {
     const { formData, selectedOptions } = await req.json()

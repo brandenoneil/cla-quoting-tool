@@ -31,6 +31,7 @@ import {
   isAutomationAllowed,
 } from '@/lib/productRules'
 import type { QuoteFormData, MachineOption } from '@/types'
+import { usePriceTableVersion } from '@/lib/usePriceTableVersion'
 
 interface Props {
   initialData: Partial<QuoteFormData>
@@ -208,6 +209,7 @@ function PricingWarningsBanner({ warnings }: { warnings: PricingWarning[] }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function ReviewForm({ initialData, intakeData = {}, dealId, isDealer = false, onSubmit }: Props) {
+  const priceTableVersion = usePriceTableVersion()
   // ── Customer state ──────────────────────────────────────────────────────────
   const [company, setCompany] = useState(initialData.company || '')
   const [contactName, setContactName] = useState(initialData.contactName || '')
@@ -422,7 +424,7 @@ export default function ReviewForm({ initialData, intakeData = {}, dealId, isDea
 
   const pricingWarnings = useMemo(
     () => getReviewPricingWarnings(m),
-    [m.machineModel, m.machinePower, m.laserSource]
+    [m.machineModel, m.machinePower, m.laserSource, priceTableVersion]
   )
   const powerPricingWarning = pricingWarnings.find((w) => w.field === 'power')
   const useCatalogPicker =

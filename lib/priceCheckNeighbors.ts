@@ -1,4 +1,4 @@
-import { PRICE_TABLE, normalizeLaser, normalizeModel } from '@/lib/pricingTable'
+import { PRICE_TABLE, getPriceTableVersion, normalizeLaser, normalizeModel } from '@/lib/pricingTable'
 
 export type NeighborMode = 'format' | 'power'
 
@@ -48,7 +48,20 @@ function buildFormatBuckets(): Map<string, ModelFormatParts[]> {
   return out
 }
 
-const formatBuckets = buildFormatBuckets()
+let neighborIndex: {
+  version: number
+  formatBuckets: Map<string, ModelFormatParts[]>
+  powerLists: Map<string, number[]>
+} | null = null
+
+/** Rebuilt whenever the price table rows change. */
+function getNeighborIndex() {
+  const version = getPriceTableVersion()
+  if (!neighborIndex || neighborIndex.version !== version) {
+    neighborIndex = { version, formatBuckets: buildFormatBuckets(), powerLists: buildPowerLists() }
+  }
+  return neighborIndex
+}
 
 /** `{ modelNorm }|{laserSheet}` → ascending unique kW values on the sheet (power neighbor axis). */
 function buildPowerLists(): Map<string, number[]> {
@@ -68,8 +81,6 @@ function buildPowerLists(): Map<string, number[]> {
   return out
 }
 
-const powerLists = buildPowerLists()
-
 export function getFormatNeighborModels(
   normalizedModel: string,
   laserSheet: 'IPG' | 'Raycus',
@@ -78,7 +89,7 @@ export function getFormatNeighborModels(
   const parts = splitModelForSort(normalizedModel)
   if (!parts) return { down: null, up: null }
   const bucketKey = `${parts.family}|${laserSheet}|${kw}`
-  const list = formatBuckets.get(bucketKey)
+  const list = getNeighborIndex().formatBuckets.get(bucketKey)
   if (!list?.length) return { down: null, up: null }
   const idx = list.findIndex((p) => p.fullModel === normalizedModel)
   if (idx < 0) return { down: null, up: null }
@@ -95,7 +106,7 @@ export function getPowerNeighborKws(
   requestedKw: number
 ): { resolvedKw: number; down: number | null; up: number | null } {
   const bk = `${normalizedModel}|${laserSheet}`
-  const kws = powerLists.get(bk)
+  const kws = getNeighborIndex().powerLists.get(bk)
   if (!kws?.length) return { resolvedKw: requestedKw, down: null, up: null }
 
   let idx = kws.indexOf(requestedKw)

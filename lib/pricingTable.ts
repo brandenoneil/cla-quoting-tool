@@ -1,6 +1,8 @@
-// Auto-generated from CLA Price List - February 2026.xlsx
-// "Model|Laser|kW" -> { list: USD list price, net: USD net price after dealer discount }
-export const PRICE_TABLE: Record<string, { list: number; net: number }> = {
+export type PriceRow = { list: number; net: number }
+
+// Fallback snapshot from the CLA price list workbook, used only until HubSpot products load
+// (or if HubSpot is unreachable). "Model|Laser|kW" -> USD list price and net after dealer discount.
+const STATIC_PRICE_TABLE: Record<string, PriceRow> = {
   "FAST 3015|IPG|12": { list: 1430285, net: 1315862 },
   "FAST 3015|IPG|15": { list: 1532925, net: 1410291 },
   "FAST 3015|IPG|20": { list: 1701208, net: 1565111 },
@@ -976,6 +978,43 @@ export const PRICE_TABLE: Record<string, { list: number; net: number }> = {
   "Fiber HD 25030|Raycus|30": { list: 3095495, net: 2847855 },
   "Fiber HD 30030|Raycus|20": { list: 3117709, net: 2868292 },
   "Fiber HD 30030|Raycus|30": { list: 3096494, net: 2848775 },
+}
+
+/** Live table. Mutated in place by setPriceTable so every importer sees the same rows. */
+export const PRICE_TABLE: Record<string, PriceRow> = { ...STATIC_PRICE_TABLE }
+
+let priceTableVersion = 0
+let priceTableSignature = 'static'
+const priceTableListeners = new Set<() => void>()
+
+/** Bumps whenever the rows change — derived lookups use it to know when to rebuild. */
+export function getPriceTableVersion(): number {
+  return priceTableVersion
+}
+
+export function getPriceTableSignature(): string {
+  return priceTableSignature
+}
+
+export function subscribePriceTable(listener: () => void): () => void {
+  priceTableListeners.add(listener)
+  return () => {
+    priceTableListeners.delete(listener)
+  }
+}
+
+/** Replace all rows. `notify: false` is for use during render, where listeners must not fire. */
+export function setPriceTable(
+  rows: Record<string, PriceRow>,
+  signature: string,
+  opts: { notify?: boolean } = {}
+): void {
+  if (signature === priceTableSignature) return
+  for (const key of Object.keys(PRICE_TABLE)) delete PRICE_TABLE[key]
+  Object.assign(PRICE_TABLE, rows)
+  priceTableSignature = signature
+  priceTableVersion += 1
+  if (opts.notify !== false) priceTableListeners.forEach((fn) => fn())
 }
 
 

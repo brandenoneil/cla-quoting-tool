@@ -23,6 +23,7 @@ import {
   isCustomPricingOption,
 } from '@/lib/sheetPricingWarnings'
 import type { QuoteFormData, QuoteOption } from '@/types'
+import { usePriceTableVersion } from '@/lib/usePriceTableVersion'
 
 type Step = 1 | 2 | 3 | 4 | 5
 
@@ -45,6 +46,7 @@ interface SubmittedQuote {
 }
 
 export default function DealerNewQuotePage() {
+  usePriceTableVersion()
   const router = useRouter()
   const [step, setStep] = useState<Step>(1)
   const [intakeTab, setIntakeTab] = useState<'chat' | 'upload' | 'voice'>('chat')

@@ -21,6 +21,7 @@ import {
   isAutomationAllowed,
 } from '@/lib/productRules'
 import type { LineItem, MachineOption } from '@/types'
+import { usePriceTableVersion } from '@/lib/usePriceTableVersion'
 
 interface QuoteData {
   id: string
@@ -217,6 +218,7 @@ function CheckOption({ checked, label, sub, disabled = false, onChange }: {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function QuoteEditForm({ quote }: { quote: QuoteData }) {
+  usePriceTableVersion()
   const router = useRouter()
 
   // ── Customer ─────────────────────────────────────────────────────────────────

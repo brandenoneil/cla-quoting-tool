@@ -3,6 +3,7 @@
 import DealerBrandHeader from '@/components/DealerBrandHeader'
 import { DEALER_CUSTOM_PRICING_MESSAGE, isCustomPricingOption } from '@/lib/sheetPricingWarnings'
 import type { Quote } from '@prisma/client'
+import { usePriceTableVersion } from '@/lib/usePriceTableVersion'
 
 interface Props {
   requests: Quote[]
@@ -91,6 +92,7 @@ function StatusTimeline({ status }: { status: string }) {
 }
 
 export default function DealerDashboard({ requests, user }: Props) {
+  usePriceTableVersion()
   const pending  = requests.filter(r => r.status === 'PENDING_APPROVAL')
   const reviewing = requests.filter(r => r.status === 'REVIEWING')
   const approved = requests.filter(r => r.status === 'PUBLISHED' || r.status === 'SENT')

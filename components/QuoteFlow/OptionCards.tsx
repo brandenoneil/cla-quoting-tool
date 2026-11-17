@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { QuoteOption } from '@/types'
 import { DEALER_CUSTOM_PRICING_MESSAGE, isCustomPricingOption } from '@/lib/sheetPricingWarnings'
+import { usePriceTableVersion } from '@/lib/usePriceTableVersion'
 
 export interface PricingContext {
   model: string
@@ -56,6 +57,7 @@ function delta(a: number, b: number) {
 }
 
 export default function OptionCards({ options, selectedLabels, onToggle, onContinue, pricingContext, isDealer = false }: Props) {
+  usePriceTableVersion()
   const [histExpanded, setHistExpanded] = useState(false)
 
   const hist = pricingContext?.historical

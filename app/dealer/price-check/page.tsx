@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { ensurePriceTable } from '@/lib/hubspotPriceTable'
 import { getDealerPriceCheckCatalog } from '@/lib/dealerPriceCheckCatalog'
 import { redirect } from 'next/navigation'
 import DealerPriceCheckClient from './DealerPriceCheckClient'
@@ -11,6 +12,7 @@ export default async function DealerPriceCheckPage() {
   if (!session) redirect('/login?callbackUrl=/dealer/price-check')
   if ((session.user as { role?: string }).role !== 'dealer') redirect('/')
 
+  await ensurePriceTable()
   const catalog = getDealerPriceCheckCatalog()
 
   return <DealerPriceCheckClient catalog={catalog} embed={false} user={session.user ?? undefined} />

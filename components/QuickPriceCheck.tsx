@@ -19,6 +19,7 @@ import {
   getBevelUiOptions,
   type BevelChoice,
 } from '@/lib/machineConstraints'
+import { usePriceTableVersion } from '@/lib/usePriceTableVersion'
 
 type NeighborMode = 'format' | 'power'
 
@@ -199,6 +200,7 @@ interface Props {
 }
 
 export default function QuickPriceCheck({ catalog, embed = false, user }: Props) {
+  usePriceTableVersion()
   const router = useRouter()
   const [form, setForm] = useState<CatalogSelectionDraft>(() => initialPriceCheckForm(catalog))
 
