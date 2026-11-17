@@ -257,16 +257,6 @@ export default function OptionCards({ options, selectedLabels, onToggle, onConti
                 )}
               </div>
 
-              {/* Freight footer (internal only) */}
-              {option.freight > 0 && !isDealer && (
-                <div className="px-5 py-3 bg-brand-warm-white/60 border-t border-brand-rule-gray/40 text-xs">
-                  <div className="flex justify-between text-gray-500">
-                    <span>Freight (2.5%)</span>
-                    <span>{fmt(option.freight)}</span>
-                  </div>
-                </div>
-              )}
-
               {/* Selected state */}
               {isSelected && (
                 <div className={`px-5 py-2 text-white text-sm text-center font-medium flex items-center justify-center gap-2 ${colors.badge.split(' ')[0]}`}>
